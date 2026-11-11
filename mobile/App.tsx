@@ -4,13 +4,14 @@ import { View, ActivityIndicator } from 'react-native';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 
-
 import { AuthProvider, AuthContext } from './src/contexts/AuthContext';
 import Login from './src/screens/Login';
 import MyTickets from './src/screens/MyTickets';
 import NewTicket from './src/screens/NewTicket';
 import TicketDetails from './src/screens/TicketDetails';
-import ManageCategories from './src/screens/ManageCategories'; // <-- Importando a nova tela
+import Dashboard from './src/screens/Dashboard';
+import ManageCategories from './src/screens/ManageCategories';
+import Profile from './src/screens/Profile'; // <-- NOVA TELA
 
 const Stack = createNativeStackNavigator();
 
@@ -31,22 +32,11 @@ function AppRoutes() {
         {user ? (
           <>
             <Stack.Screen name="MyTickets" component={MyTickets} />
-            <Stack.Screen 
-              name="NewTicket" 
-              component={NewTicket} 
-              options={{ headerShown: true, title: 'Abrir Chamado' }} 
-            />
-            {/* Nova tela registrada aqui */}
-            <Stack.Screen 
-              name="TicketDetails" 
-              component={TicketDetails} 
-              options={{ headerShown: true, title: 'Detalhes do Chamado' }} 
-            />
-            <Stack.Screen 
-              name="ManageCategories" 
-              component={ManageCategories} 
-              options={{ headerShown: true, title: 'Gerenciar Categorias' }} 
-            />
+            <Stack.Screen name="NewTicket" component={NewTicket} options={{ headerShown: true, title: 'Abrir Chamado' }} />
+            <Stack.Screen name="TicketDetails" component={TicketDetails} options={{ headerShown: true, title: 'Detalhes do Chamado' }} />
+            <Stack.Screen name="Dashboard" component={Dashboard} options={{ headerShown: true, title: 'Painel do Gestor' }} />
+            <Stack.Screen name="ManageCategories" component={ManageCategories} options={{ headerShown: true, title: 'Gerenciar Categorias' }} />
+            <Stack.Screen name="Profile" component={Profile} options={{ headerShown: true, title: 'Meu Perfil' }} />
           </>
         ) : (
           <Stack.Screen name="Login" component={Login} />

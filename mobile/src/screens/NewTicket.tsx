@@ -1,7 +1,8 @@
 // mobile/src/screens/NewTicket.tsx
 import React, { useState, useEffect } from 'react';
-import { View, Text, TextInput, TouchableOpacity, StyleSheet, Alert, ScrollView } from 'react-native';
+import { View, Text, TextInput, TouchableOpacity, StyleSheet, Alert, ScrollView, Image } from 'react-native';
 import { Picker } from '@react-native-picker/picker';
+import * as ImagePicker from 'expo-image-picker';
 import api from '../api/client';
 
 export default function NewTicket({ navigation }: any) {
@@ -9,24 +10,35 @@ export default function NewTicket({ navigation }: any) {
   const [description, setDescription] = useState('');
   const [priority, setPriority] = useState('media');
   const [categories, setCategories] = useState<any[]>([]);
-  // Inicializa com string vazia para evitar o aviso de "value prop should not be null"
   const [categoryId, setCategoryId] = useState<string>('');
+  
+  const [image, setImage] = useState<string | null>(null);
 
   useEffect(() => {
-    // Busca as categorias reais do banco de dados
-    api.get('/api/v1/categories')
-      .then(response => {
-        setCategories(response.data);
-        if (response.data.length > 0) {
-          // Converte o ID para string para o Picker na web
-          setCategoryId(String(response.data[0].id));
-        }
-      })
-      .catch(err => {
-        console.error('Erro ao buscar categorias:', err);
-        Alert.alert('Erro', 'Não foi possível carregar as categorias.');
-      });
+    api.get('/api/v1/categories').then(res => {
+      setCategories(res.data);
+      if (res.data.length > 0) setCategoryId(String(res.data[0].id));
+    });
   }, []);
+
+  async function pickImage() {
+    const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (permissionResult.granted === false) {
+      Alert.alert("Permissão necessária", "Você precisa permitir o acesso à galeria.");
+      return;
+    }
+
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      allowsEditing: true,
+      aspect: [4, 3],
+      quality: 0.5,
+    });
+
+    if (!result.canceled) {
+      setImage(result.assets[0].uri);
+    }
+  }
 
   async function handleCreate() {
     if (!title || !description || !categoryId) {
@@ -34,14 +46,23 @@ export default function NewTicket({ navigation }: any) {
       return;
     }
 
+    const formData = new FormData();
+    formData.append('ticket[title]', title);
+    formData.append('ticket[description]', description);
+    formData.append('ticket[priority]', priority);
+    formData.append('ticket[category_id]', categoryId);
+
+    if (image) {
+      // Lógica para converter a imagem para envio (funciona na Web e no Celular)
+      const response = await fetch(image);
+      const blob = await response.blob();
+      const fileExt = image.split('.').pop() || 'jpg';
+      formData.append('ticket[photo]', blob, `photo.${fileExt}`);
+    }
+
     try {
-      await api.post('/api/v1/tickets', {
-        ticket: {
-          title,
-          description,
-          priority,
-          category_id: Number(categoryId) // Converte de volta para número
-        }
+      await api.post('/api/v1/tickets', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' }
       });
       Alert.alert('Sucesso', 'Chamado aberto com sucesso!');
       navigation.goBack();
@@ -61,16 +82,8 @@ export default function NewTicket({ navigation }: any) {
 
       <Text style={styles.label}>Categoria</Text>
       <View style={styles.pickerContainer}>
-        <Picker
-          selectedValue={categoryId}
-          onValueChange={(val) => setCategoryId(val)}
-        >
-          {categories.length === 0 && (
-            <Picker.Item label="Carregando categorias..." value="" />
-          )}
-          {categories.map(cat => (
-            <Picker.Item key={cat.id} label={cat.name} value={String(cat.id)} />
-          ))}
+        <Picker selectedValue={categoryId} onValueChange={setCategoryId}>
+          {categories.map(cat => <Picker.Item key={cat.id} label={cat.name} value={String(cat.id)} />)}
         </Picker>
       </View>
 
@@ -83,6 +96,15 @@ export default function NewTicket({ navigation }: any) {
           <Picker.Item label="Crítica" value="critica" />
         </Picker>
       </View>
+
+      <Text style={styles.label}>Foto do Problema (Opcional)</Text>
+      <TouchableOpacity style={styles.photoButton} onPress={pickImage}>
+        <Text style={styles.photoButtonText}>📷 Anexar Imagem</Text>
+      </TouchableOpacity>
+      
+      {image && (
+        <Image source={{ uri: image }} style={{ width: '100%', height: 200, marginTop: 10, borderRadius: 8 }} />
+      )}
 
       <TouchableOpacity style={styles.button} onPress={handleCreate}>
         <Text style={styles.buttonText}>Abrir Chamado</Text>
@@ -97,6 +119,8 @@ const styles = StyleSheet.create({
   input: { borderWidth: 1, borderColor: '#ccc', borderRadius: 8, padding: 10, fontSize: 16 },
   textArea: { height: 100, textAlignVertical: 'top' },
   pickerContainer: { borderWidth: 1, borderColor: '#ccc', borderRadius: 8, marginBottom: 5 },
+  photoButton: { backgroundColor: '#f0f0f0', padding: 15, borderRadius: 8, alignItems: 'center', borderWidth: 1, borderColor: '#ddd', borderStyle: 'dashed' },
+  photoButtonText: { color: '#333', fontSize: 16, fontWeight: 'bold' },
   button: { backgroundColor: '#007AFF', padding: 15, borderRadius: 8, alignItems: 'center', marginTop: 30, marginBottom: 50 },
   buttonText: { color: '#fff', fontSize: 18, fontWeight: 'bold' },
 });

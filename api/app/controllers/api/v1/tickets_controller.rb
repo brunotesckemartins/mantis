@@ -1,14 +1,10 @@
-# api/app/controllers/api/v1/tickets_controller.rb
 module Api
   module V1
     class TicketsController < ApplicationController
-      before_action :authenticate_user! # Exige que o usuário esteja logado com o token JWT
+      before_action :authenticate_user!
 
-      # GET /tickets (Lista os chamados)
-            # GET /tickets
-            # GET /tickets
+      # GET /tickets
       def index
-        # 1. Define a query base dependendo do perfil
         if current_user.requester?
           @tickets = current_user.requested_tickets
         elsif current_user.technician?
@@ -17,23 +13,28 @@ module Api
           @tickets = Ticket.all
         end
 
-        # 2. Aplica os filtros (se enviados na URL)
         @tickets = @tickets.where(status: params[:status]) if params[:status].present?
         @tickets = @tickets.where(priority: params[:priority]) if params[:priority].present?
         
-        # 3. Aplica a busca por texto no título ou descrição
         if params[:search].present?
           search_term = "%#{params[:search]}%"
           @tickets = @tickets.where("title ILIKE :search OR description ILIKE :search", search: search_term)
         end
 
-        # 4. Ordena e otimiza a busca dos relacionamentos
-        @tickets = @tickets.order(created_at: :desc).includes(:category, :requester, :technician, ticket_events: :user)
+        # Otimização e ordenação
+        @tickets = @tickets.order(created_at: :desc).includes(:category, :requester, :technician, ticket_events: :user, photo_attachment: :blob)
 
-        render json: @tickets, include: [:category, :requester, :technician, { ticket_events: { include: :user } }]
+        # Gera o JSON incluindo a URL da foto
+        tickets_json = @tickets.map do |ticket|
+          ticket.as_json(include: [:category, :requester, :technician, { ticket_events: { include: :user } }]).merge(
+            photo_url: ticket.photo.attached? ? Rails.application.routes.url_helpers.rails_blob_path(ticket.photo, only_path: true) : nil
+          )
+        end
+
+        render json: tickets_json
       end
 
-      # POST /tickets 
+      # POST /tickets
       def create
         @ticket = current_user.requested_tickets.new(ticket_params)
         
@@ -44,22 +45,35 @@ module Api
         end
       end
 
-      # api/app/controllers/api/v1/tickets_controller.rb
+      # PATCH /tickets/:id/assume
+      def assume
+        @ticket = Ticket.find(params[:id])
+        
+        if current_user.technician? && @ticket.status == 'aberto'
+          @ticket.update(technician_id: current_user.id, status: 'em_atendimento')
+          render json: @ticket, status: :ok
+        else
+          render json: { error: 'Não é possível assumir este chamado.' }, status: :unprocessable_entity
+        end
+      end
 
+      # PATCH /tickets/:id/update_status
+      def update_status
+        @ticket = Ticket.find(params[:id])
+        
+        if current_user.technician? && @ticket.technician_id == current_user.id
+          if @ticket.update(status: params[:status], solution: params[:solution])
+            render json: @ticket, status: :ok
+          else
+            render json: { errors: @ticket.errors.full_messages }, status: :unprocessable_entity
+          end
+        else
+          render json: { error: 'Ação não permitida.' }, status: :unauthorized
+        end
+      end
 
-  # PATCH /tickets/:id/assume
-  def assume
-    @ticket = Ticket.find(params[:id])
-    
-    if current_user.technician? && @ticket.status == 'aberto'
-      @ticket.update(technician_id: current_user.id, status: 'em_atendimento')
-      render json: @ticket, status: :ok
-    else
-      render json: { error: 'Não é possível assumir este chamado.' }, status: :unprocessable_entity
-    end
-  end
-
-   def assign
+      # PATCH /tickets/:id/assign
+      def assign
         @ticket = Ticket.find(params[:id])
         
         if current_user.manager?
@@ -73,23 +87,7 @@ module Api
         end
       end
 
-  # PATCH /tickets/:id/update_status
-        def update_status
-        @ticket = Ticket.find(params[:id])
-        
-        if current_user.technician? && @ticket.technician_id == current_user.id
-          # Permite atualizar o status e a solução de uma vez
-          if @ticket.update(status: params[:status], solution: params[:solution])
-            render json: @ticket, status: :ok
-          else
-            render json: { errors: @ticket.errors.full_messages }, status: :unprocessable_entity
-          end
-        else
-          render json: { error: 'Ação não permitida.' }, status: :unauthorized
-        end
-      end
-
-            # POST /tickets/:id/add_comment
+      # POST /tickets/:id/add_comment
       def add_comment
         @ticket = Ticket.find(params[:id])
         @event = @ticket.ticket_events.new(user: current_user, content: params[:content])
@@ -101,13 +99,11 @@ module Api
         end
       end
 
-# ... (private ticket_params) ...
-
       private
 
       def ticket_params
-        # Permite apenas os campos que o solicitante pode enviar ao criar um chamado
-        params.require(:ticket).permit(:title, :description, :priority, :category_id)
+        # Inclui o :photo na lista de permitidos
+        params.require(:ticket).permit(:title, :description, :priority, :category_id, :photo)
       end
     end
   end

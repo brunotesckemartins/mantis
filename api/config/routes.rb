@@ -1,4 +1,3 @@
-# api/config/routes.rb
 Rails.application.routes.draw do
   devise_for :users, 
     path: "auth", 
@@ -8,24 +7,29 @@ Rails.application.routes.draw do
       registrations: 'api/v1/registrations'
     }
 
-  # --- ADICIONE ESTE BLOCO ---
-      namespace :api do
+  namespace :api do
     namespace :v1 do
       resources :tickets, only: [:index, :create] do
         member do
           patch :assume
           patch :update_status
-          patch :assign 
+          patch :assign
           post :add_comment
         end
       end
-      resources :categories, only: [:index, :create, :update] # <-- NOVO
       
-      # Rota customizada para listar técnicos
-      get 'users/technicians', to: 'users#technicians' # <-- NOVO
+      resources :categories, only: [:index, :create, :update]
+      
+      get 'users/technicians', to: 'users#technicians'
+      
+      # --- ROTAS DO PERFIL ---
+      get 'profile', to: 'users#profile'
+      patch 'profile/avatar', to: 'users#update_avatar'
+      patch 'profile/password', to: 'users#update_password'
+      
+      get 'dashboard', to: 'dashboards#index'
     end
   end
-  # ---------------------------
 
   get "/health", to: proc { [200, {}, [{ status: "ok" }.to_json]] }
 end

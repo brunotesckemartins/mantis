@@ -1,10 +1,9 @@
 // mobile/src/screens/TicketDetails.tsx
-import React, { useState, useEffect } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, Alert, ScrollView, TextInput } from 'react-native';
+import React, { useState, useEffect, useContext } from 'react';
+import { View, Text, TouchableOpacity, StyleSheet, Alert, ScrollView, TextInput, Image, Modal } from 'react-native';
 import { Picker } from '@react-native-picker/picker';
 import api from '../api/client';
 import { AuthContext } from '../contexts/AuthContext';
-import { useContext } from 'react';
 
 export default function TicketDetails({ route }: any) {
   const { ticket: initialTicket, userRole } = route.params;
@@ -14,9 +13,12 @@ export default function TicketDetails({ route }: any) {
   const [technicians, setTechnicians] = useState<any[]>([]);
   const [selectedTech, setSelectedTech] = useState<string>('');
   
-  // Estados para comentários e solução
   const [newComment, setNewComment] = useState('');
   const [solutionText, setSolutionText] = useState('');
+  
+  // Estados para controlar a imagem
+  const [showImage, setShowImage] = useState(true);
+  const [isZoomed, setIsZoomed] = useState(false);
 
   useEffect(() => {
     if (userRole === 'manager') {
@@ -63,7 +65,6 @@ export default function TicketDetails({ route }: any) {
     if (!newComment) return;
     try {
       const response = await api.post(`/api/v1/tickets/${ticket.id}/add_comment`, { content: newComment });
-      // Adiciona o novo comentário na lista local
       const updatedEvents = [...(ticket.ticket_events || []), { ...response.data, user }];
       setTicket({ ...ticket, ticket_events: updatedEvents });
       setNewComment('');
@@ -72,15 +73,51 @@ export default function TicketDetails({ route }: any) {
 
   return (
     <ScrollView style={styles.container}>
+      
+      {/* MODAL PARA ZOOM DA IMAGEM */}
+      <Modal visible={isZoomed} transparent={true} animationType="fade">
+        <View style={styles.modalBackground}>
+          <TouchableOpacity style={styles.closeModalBtn} onPress={() => setIsZoomed(false)}>
+            <Text style={{ color: '#fff', fontSize: 18, fontWeight: 'bold' }}>Fechar</Text>
+          </TouchableOpacity>
+          <Image 
+            source={{ uri: `http://localhost:3000${ticket.photo_url}` }} 
+            style={styles.zoomedImage} 
+            resizeMode="contain"
+          />
+        </View>
+      </Modal>
+
       <View style={styles.card}>
         <Text style={styles.title}>{ticket.title}</Text>
         <Text style={styles.desc}>{ticket.description}</Text>
+        
+        {/* CONTROLE DA FOTO */}
+        {ticket.photo_url && (
+          <View style={{ marginBottom: 15 }}>
+            <TouchableOpacity onPress={() => setShowImage(!showImage)} style={{ marginBottom: 10 }}>
+              <Text style={{ color: '#007AFF', fontWeight: 'bold' }}>
+                {showImage ? 'Ocultar Foto do Problema' : 'Mostrar Foto do Problema'}
+              </Text>
+            </TouchableOpacity>
+
+            {showImage && (
+              <TouchableOpacity onPress={() => setIsZoomed(true)}>
+                <Image 
+                  source={{ uri: `http://localhost:3000${ticket.photo_url}` }} 
+                  style={{ width: '100%', height: 250, borderRadius: 8, backgroundColor: '#eee' }} 
+                  resizeMode="cover"
+                />
+                <Text style={{ fontSize: 12, color: '#666', textAlign: 'center', marginTop: 5 }}>Clique na foto para expandir</Text>
+              </TouchableOpacity>
+            )}
+          </View>
+        )}
         
         <View style={styles.infoRow}><Text style={styles.label}>Status:</Text><Text style={styles.value}>{ticket.status.toUpperCase()}</Text></View>
         <View style={styles.infoRow}><Text style={styles.label}>Prioridade:</Text><Text style={styles.value}>{ticket.priority.toUpperCase()}</Text></View>
         {ticket.technician && <View style={styles.infoRow}><Text style={styles.label}>Técnico:</Text><Text style={styles.value}>{ticket.technician.name}</Text></View>}
 
-        {/* SOLUÇÃO (se existir) */}
         {ticket.solution && (
           <View style={styles.solutionBox}>
             <Text style={styles.label}>Solução Aplicada:</Text>
@@ -88,7 +125,6 @@ export default function TicketDetails({ route }: any) {
           </View>
         )}
 
-        {/* AÇÕES DO GESTOR */}
         {userRole === 'manager' && ticket.status === 'aberto' && technicians.length > 0 && (
           <View style={{ marginTop: 20, borderTopWidth: 1, borderColor: '#eee', paddingTop: 15 }}>
             <Text style={styles.label}>Atribuir a um Técnico:</Text>
@@ -103,7 +139,6 @@ export default function TicketDetails({ route }: any) {
           </View>
         )}
 
-        {}
         {userRole === 'technician' && ticket.status === 'aberto' && (
           <TouchableOpacity style={[styles.button, { backgroundColor: '#FF9500' }]} onPress={handleAssume}>
             <Text style={styles.buttonText}>Assumir Chamado</Text>
@@ -127,7 +162,6 @@ export default function TicketDetails({ route }: any) {
         )}
       </View>
 
-      {}
       <View style={[styles.card, { marginTop: 15 }]}>
         <Text style={styles.title}>Histórico</Text>
         
@@ -167,5 +201,9 @@ const styles = StyleSheet.create({
   input: { borderWidth: 1, borderColor: '#ccc', borderRadius: 8, padding: 10, fontSize: 16, backgroundColor: '#fff' },
   commentBox: { backgroundColor: '#f9f9f9', padding: 10, borderRadius: 8, marginBottom: 10, borderLeftWidth: 3, borderLeftColor: '#007AFF' },
   commentAuthor: { fontWeight: 'bold', marginBottom: 3, color: '#333' },
-  commentText: { fontSize: 15, color: '#444' }
+  commentText: { fontSize: 15, color: '#444' },
+  // ESTILOS DO MODAL DE ZOOM
+  modalBackground: { flex: 1, backgroundColor: 'rgba(0,0,0,0.9)', justifyContent: 'center', alignItems: 'center' },
+  zoomedImage: { width: '100%', height: '80%' },
+  closeModalBtn: { position: 'absolute', top: 50, right: 20, padding: 10, zIndex: 10 }
 });

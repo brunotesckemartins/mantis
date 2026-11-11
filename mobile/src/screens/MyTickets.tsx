@@ -10,11 +10,10 @@ export default function MyTickets({ navigation }: any) {
   const [search, setSearch] = useState('');
   const [filterStatus, setFilterStatus] = useState('');
   
-  const { signOut, user } = useContext(AuthContext);
+  const { user } = useContext(AuthContext); // Removemos o signOut daqui, pois agora fica no Perfil
 
   const loadTickets = useCallback(async () => {
     try {
-      // Monta a URL com os filtros
       let url = '/api/v1/tickets?';
       if (search) url += `search=${search}&`;
       if (filterStatus) url += `status=${filterStatus}&`;
@@ -52,19 +51,24 @@ export default function MyTickets({ navigation }: any) {
     <View style={styles.container}>
       <View style={styles.header}>
         <Text style={styles.headerTitle}>Meus Chamados</Text>
-        <View style={{ flexDirection: 'row' }}>
+        <View style={{ flexDirection: 'row', alignItems: 'center' }}>
           {user?.role === 'manager' && (
-            <TouchableOpacity onPress={() => navigation.navigate('ManageCategories')} style={{ marginRight: 15 }}>
-              <Text style={{ color: 'blue', fontWeight: 'bold' }}>Categorias</Text>
-            </TouchableOpacity>
+            <>
+              <TouchableOpacity onPress={() => navigation.navigate('Dashboard')} style={{ marginRight: 15 }}>
+                <Text style={{ color: '#AF52DE', fontWeight: 'bold' }}>Painel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity onPress={() => navigation.navigate('ManageCategories')} style={{ marginRight: 15 }}>
+                <Text style={{ color: 'blue', fontWeight: 'bold' }}>Categorias</Text>
+              </TouchableOpacity>
+            </>
           )}
-          <TouchableOpacity onPress={signOut}>
-            <Text style={styles.logoutText}>Sair</Text>
+          {/* NOVO BOTÃO DE PERFIL */}
+          <TouchableOpacity onPress={() => navigation.navigate('Profile')}>
+            <Text style={{ color: '#007AFF', fontWeight: 'bold' }}>Perfil</Text>
           </TouchableOpacity>
         </View>
       </View>
 
-      {/* ÁREA DE FILTROS E BUSCA */}
       <View style={styles.filterContainer}>
         <TextInput
           style={styles.searchInput}
@@ -107,7 +111,6 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#f5f5f5' },
   header: { flexDirection: 'row', justifyContent: 'space-between', padding: 20, backgroundColor: '#fff', alignItems: 'center', borderBottomWidth: 1, borderColor: '#eee' },
   headerTitle: { fontSize: 22, fontWeight: 'bold' },
-  logoutText: { color: 'red', fontSize: 16 },
   filterContainer: { padding: 15, backgroundColor: '#fff', borderBottomWidth: 1, borderColor: '#eee' },
   searchInput: { backgroundColor: '#f0f0f0', padding: 10, borderRadius: 8, fontSize: 16 },
   filterBtn: { paddingVertical: 6, paddingHorizontal: 12, borderRadius: 20, backgroundColor: '#f0f0f0', marginRight: 8 },
