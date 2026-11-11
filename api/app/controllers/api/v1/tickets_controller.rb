@@ -6,16 +6,29 @@ module Api
 
       # GET /tickets (Lista os chamados)
             # GET /tickets
+            # GET /tickets
       def index
+        # 1. Define a query base dependendo do perfil
         if current_user.requester?
-          @tickets = current_user.requested_tickets.order(created_at: :desc)
+          @tickets = current_user.requested_tickets
         elsif current_user.technician?
-          @tickets = Ticket.where(status: 'aberto').or(Ticket.where(technician_id: current_user.id)).order(created_at: :desc)
-        else # Gestor
-          @tickets = Ticket.all.order(created_at: :desc)
+          @tickets = Ticket.where(status: 'aberto').or(Ticket.where(technician_id: current_user.id))
+        else
+          @tickets = Ticket.all
         end
 
-        @tickets = @tickets.includes(:category, :requester, :technician, ticket_events: :user)
+        # 2. Aplica os filtros (se enviados na URL)
+        @tickets = @tickets.where(status: params[:status]) if params[:status].present?
+        @tickets = @tickets.where(priority: params[:priority]) if params[:priority].present?
+        
+        # 3. Aplica a busca por texto no título ou descrição
+        if params[:search].present?
+          search_term = "%#{params[:search]}%"
+          @tickets = @tickets.where("title ILIKE :search OR description ILIKE :search", search: search_term)
+        end
+
+        # 4. Ordena e otimiza a busca dos relacionamentos
+        @tickets = @tickets.order(created_at: :desc).includes(:category, :requester, :technician, ticket_events: :user)
 
         render json: @tickets, include: [:category, :requester, :technician, { ticket_events: { include: :user } }]
       end

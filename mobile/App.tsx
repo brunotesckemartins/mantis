@@ -4,11 +4,13 @@ import { View, ActivityIndicator } from 'react-native';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 
+
 import { AuthProvider, AuthContext } from './src/contexts/AuthContext';
 import Login from './src/screens/Login';
 import MyTickets from './src/screens/MyTickets';
 import NewTicket from './src/screens/NewTicket';
-import TicketDetails from './src/screens/TicketDetails'; // <-- Importando a nova tela
+import TicketDetails from './src/screens/TicketDetails';
+import ManageCategories from './src/screens/ManageCategories'; // <-- Importando a nova tela
 
 const Stack = createNativeStackNavigator();
 
@@ -39,6 +41,11 @@ function AppRoutes() {
               name="TicketDetails" 
               component={TicketDetails} 
               options={{ headerShown: true, title: 'Detalhes do Chamado' }} 
+            />
+            <Stack.Screen 
+              name="ManageCategories" 
+              component={ManageCategories} 
+              options={{ headerShown: true, title: 'Gerenciar Categorias' }} 
             />
           </>
         ) : (

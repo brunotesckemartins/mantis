@@ -19,7 +19,7 @@ Rails.application.routes.draw do
           post :add_comment
         end
       end
-      resources :categories, only: [:index, :create] # <-- NOVO
+      resources :categories, only: [:index, :create, :update] # <-- NOVO
       
       # Rota customizada para listar técnicos
       get 'users/technicians', to: 'users#technicians' # <-- NOVO
