@@ -14,3 +14,14 @@
 #       methods: [:get, :post, :put, :patch, :delete, :options, :head]
 #   end
 # end
+
+# config/initializers/cors.rb
+Rails.application.config.middleware.insert_before 0, Rack::Cors do
+  allow do
+    origins "*" # Em produção, troque pelo IP/domínio específico
+    resource "*",
+      headers: :any,
+      expose: ["Authorization"], # Importante para o app ler o token JWT
+      methods: [:get, :post, :put, :patch, :delete, :options, :head]
+  end
+end
