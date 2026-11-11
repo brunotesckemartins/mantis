@@ -7,9 +7,8 @@ import { AuthContext } from '../contexts/AuthContext';
 
 export default function MyTickets({ navigation }: any) {
   const [tickets, setTickets] = useState([]);
-  const { signOut } = useContext(AuthContext);
+  const { signOut, user } = useContext(AuthContext); // Pega o user para saber o perfil
 
-  // useFocusEffect faz com que a lista seja recarregada toda vez que a tela abre
   useFocusEffect(
     useCallback(() => {
       async function loadTickets() {
@@ -24,15 +23,20 @@ export default function MyTickets({ navigation }: any) {
     }, [])
   );
 
+  // Função que renderiza o card do chamado
   function renderItem({ item }: any) {
     return (
-      <View style={styles.card}>
+      <TouchableOpacity 
+        style={styles.card}
+        // Ao clicar, navega para a tela de detalhes passando o chamado e o perfil do usuário
+        onPress={() => navigation.navigate('TicketDetails', { ticket: item, userRole: user?.role })}
+      >
         <Text style={styles.cardTitle}>{item.title}</Text>
         <Text style={styles.cardDesc}>{item.description}</Text>
         <View style={styles.badge}>
           <Text style={styles.badgeText}>{item.status.toUpperCase()}</Text>
         </View>
-      </View>
+      </TouchableOpacity>
     );
   }
 

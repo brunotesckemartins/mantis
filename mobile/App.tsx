@@ -8,6 +8,7 @@ import { AuthProvider, AuthContext } from './src/contexts/AuthContext';
 import Login from './src/screens/Login';
 import MyTickets from './src/screens/MyTickets';
 import NewTicket from './src/screens/NewTicket';
+import TicketDetails from './src/screens/TicketDetails'; // <-- Importando a nova tela
 
 const Stack = createNativeStackNavigator();
 
@@ -26,17 +27,21 @@ function AppRoutes() {
     <NavigationContainer>
       <Stack.Navigator screenOptions={{ headerShown: false }}>
         {user ? (
-          // Se estiver logado, mostra as telas internas
           <>
             <Stack.Screen name="MyTickets" component={MyTickets} />
             <Stack.Screen 
               name="NewTicket" 
               component={NewTicket} 
-              options={{ headerShown: true, title: 'Abrir Chamado' }} // Mostra o cabeçalho padrão com botão de voltar
+              options={{ headerShown: true, title: 'Abrir Chamado' }} 
+            />
+            {/* Nova tela registrada aqui */}
+            <Stack.Screen 
+              name="TicketDetails" 
+              component={TicketDetails} 
+              options={{ headerShown: true, title: 'Detalhes do Chamado' }} 
             />
           </>
         ) : (
-          // Se não estiver logado, mostra a tela de Login
           <Stack.Screen name="Login" component={Login} />
         )}
       </Stack.Navigator>
