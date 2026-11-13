@@ -26,6 +26,7 @@ Rails.application.routes.draw do
       get 'profile', to: 'users#profile'
       patch 'profile/avatar', to: 'users#update_avatar'
       patch 'profile/password', to: 'users#update_password'
+      patch 'profile/identification', to: 'users#update_identification' # <-- NOVA ROTA
       
       get 'dashboard', to: 'dashboards#index'
     end

@@ -1,10 +1,14 @@
 // mobile/src/screens/Dashboard.tsx
-import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
+import React, { useState, useEffect, useContext } from 'react';
+import { View, Text, StyleSheet, ScrollView } from 'react-native';
+import { BlurView } from 'expo-blur';
 import api from '../api/client';
+import { ThemeContext } from '../contexts/ThemeContext';
+import XmbBackground from '../components/XmbBackground';
 
-export default function Dashboard({ navigation }: any) {
+export default function Dashboard() {
   const [data, setData] = useState<any>(null);
+  const { colors, isDark } = useContext(ThemeContext);
 
   useEffect(() => {
     api.get('/api/v1/dashboard')
@@ -13,57 +17,87 @@ export default function Dashboard({ navigation }: any) {
   }, []);
 
   if (!data) {
-    return <Text style={{ textAlign: 'center', marginTop: 50 }}>Carregando métricas...</Text>;
+    return (
+      <XmbBackground>
+        <Text style={{ textAlign: 'center', marginTop: 50, color: colors.textPrimary }}>Carregando métricas...</Text>
+      </XmbBackground>
+    );
   }
 
   return (
-    <ScrollView style={styles.container}>
-      <View style={styles.grid}>
-        <View style={[styles.card, { backgroundColor: '#E3F2FD' }]}>
-          <Text style={styles.cardNumber}>{data.total}</Text>
-          <Text style={styles.cardLabel}>Total de Chamados</Text>
-        </View>
-        <View style={[styles.card, { backgroundColor: '#FFF3E0' }]}>
-          <Text style={[styles.cardNumber, { color: '#FF9800' }]}>{data.abertos}</Text>
-          <Text style={styles.cardLabel}>Abertos</Text>
-        </View>
-        <View style={[styles.card, { backgroundColor: '#F3E5F5' }]}>
-          <Text style={[styles.cardNumber, { color: '#9C27B0' }]}>{data.em_atendimento}</Text>
-          <Text style={styles.cardLabel}>Em Atendimento</Text>
-        </View>
-        <View style={[styles.card, { backgroundColor: '#E8F5E9' }]}>
-          <Text style={[styles.cardNumber, { color: '#4CAF50' }]}>{data.resolvidos}</Text>
-          <Text style={styles.cardLabel}>Resolvidos</Text>
-        </View>
-      </View>
-
-      <View style={styles.rankingBox}>
-        <Text style={styles.rankingTitle}>🏆 Ranking de Técnicos</Text>
-        <Text style={styles.rankingSubtitle}>Chamados resolvidos</Text>
-
-        {data.ranking.map((tech: any, index: number) => (
-          <View key={index} style={styles.rankingItem}>
-            <Text style={styles.rankingName}>{index + 1}º {tech.name}</Text>
-            <Text style={styles.rankingCount}>{tech.resolved_count}</Text>
+    <XmbBackground>
+      <ScrollView style={styles.container}>
+        <View style={styles.grid}>
+          {/* Cartão Total */}
+          <View style={styles.cardWrapper}>
+            <BlurView intensity={isDark ? 20 : 50} tint={isDark ? 'dark' : 'light'} style={StyleSheet.absoluteFill} />
+            <View style={[styles.card, { backgroundColor: colors.glassTint }]}>
+              <Text style={[styles.cardNumber, { color: colors.textPrimary }]}>{data.total}</Text>
+              <Text style={[styles.cardLabel, { color: colors.textSecondary }]}>Total de Chamados</Text>
+            </View>
           </View>
-        ))}
-        
-        {data.ranking.length === 0 && <Text style={{ color: '#666' }}>Nenhum técnico cadastrado.</Text>}
-      </View>
-    </ScrollView>
+
+          {/* Cartão Abertos */}
+          <View style={styles.cardWrapper}>
+            <BlurView intensity={isDark ? 20 : 50} tint={isDark ? 'dark' : 'light'} style={StyleSheet.absoluteFill} />
+            <View style={[styles.card, { backgroundColor: colors.glassTint }]}>
+              <Text style={[styles.cardNumber, { color: '#FF9F0A' }]}>{data.abertos}</Text>
+              <Text style={[styles.cardLabel, { color: colors.textSecondary }]}>Abertos</Text>
+            </View>
+          </View>
+
+          {/* Cartão Em Atendimento */}
+          <View style={styles.cardWrapper}>
+            <BlurView intensity={isDark ? 20 : 50} tint={isDark ? 'dark' : 'light'} style={StyleSheet.absoluteFill} />
+            <View style={[styles.card, { backgroundColor: colors.glassTint }]}>
+              <Text style={[styles.cardNumber, { color: '#BF5AF2' }]}>{data.em_atendimento}</Text>
+              <Text style={[styles.cardLabel, { color: colors.textSecondary }]}>Em Atendimento</Text>
+            </View>
+          </View>
+
+          {/* Cartão Resolvidos */}
+          <View style={styles.cardWrapper}>
+            <BlurView intensity={isDark ? 20 : 50} tint={isDark ? 'dark' : 'light'} style={StyleSheet.absoluteFill} />
+            <View style={[styles.card, { backgroundColor: colors.glassTint }]}>
+              <Text style={[styles.cardNumber, { color: '#30D158' }]}>{data.resolvidos}</Text>
+              <Text style={[styles.cardLabel, { color: colors.textSecondary }]}>Resolvidos</Text>
+            </View>
+          </View>
+        </View>
+
+        <View style={styles.rankingWrapper}>
+          <BlurView intensity={isDark ? 20 : 50} tint={isDark ? 'dark' : 'light'} style={StyleSheet.absoluteFill} />
+          <View style={[styles.rankingBox, { backgroundColor: colors.glassTint }]}>
+            <Text style={[styles.rankingTitle, { color: colors.textPrimary }]}>🏆 Ranking de Técnicos</Text>
+            <Text style={[styles.rankingSubtitle, { color: colors.textSecondary }]}>Chamados resolvidos</Text>
+
+            {data.ranking.map((tech: any, index: number) => (
+              <View key={index} style={[styles.rankingItem, { borderBottomColor: colors.border }]}>
+                <Text style={[styles.rankingName, { color: colors.textPrimary }]}>{index + 1}º {tech.name}</Text>
+                <Text style={[styles.rankingCount, { color: '#30D158' }]}>{tech.resolved_count}</Text>
+              </View>
+            ))}
+            
+            {data.ranking.length === 0 && <Text style={{ color: colors.textMuted }}>Nenhum técnico cadastrado.</Text>}
+          </View>
+        </View>
+      </ScrollView>
+    </XmbBackground>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#f5f5f5', padding: 15 },
+  container: { flex: 1, padding: 15 },
   grid: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between' },
-  card: { width: '48%', padding: 20, borderRadius: 12, marginBottom: 15, elevation: 2 },
-  cardNumber: { fontSize: 32, fontWeight: 'bold', color: '#1976D2', marginBottom: 5 },
-  cardLabel: { fontSize: 14, fontWeight: '600', color: '#555' },
-  rankingBox: { backgroundColor: '#fff', padding: 20, borderRadius: 12, marginTop: 10, elevation: 2, marginBottom: 50 },
+  cardWrapper: { width: '48%', borderRadius: 12, marginBottom: 15, overflow: 'hidden', borderWidth: 1, borderColor: 'rgba(255,255,255,0.1)' },
+  card: { padding: 20 },
+  cardNumber: { fontSize: 32, fontWeight: 'bold', marginBottom: 5 },
+  cardLabel: { fontSize: 14, fontWeight: '600' },
+  rankingWrapper: { borderRadius: 12, marginTop: 10, marginBottom: 50, overflow: 'hidden', borderWidth: 1, borderColor: 'rgba(255,255,255,0.1)' },
+  rankingBox: { padding: 20 },
   rankingTitle: { fontSize: 20, fontWeight: 'bold', marginBottom: 5 },
-  rankingSubtitle: { fontSize: 14, color: '#666', marginBottom: 15 },
-  rankingItem: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 12, borderBottomWidth: 1, borderColor: '#eee' },
+  rankingSubtitle: { fontSize: 14, marginBottom: 15 },
+  rankingItem: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 12, borderBottomWidth: 1 },
   rankingName: { fontSize: 16, fontWeight: '500' },
-  rankingCount: { fontSize: 16, fontWeight: 'bold', color: '#4CAF50' }
+  rankingCount: { fontSize: 16, fontWeight: 'bold' }
 });

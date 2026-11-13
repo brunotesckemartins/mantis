@@ -3,7 +3,6 @@ module Api
     class TicketsController < ApplicationController
       before_action :authenticate_user!
 
-      # GET /tickets
       def index
         if current_user.requester?
           @tickets = current_user.requested_tickets
@@ -21,12 +20,23 @@ module Api
           @tickets = @tickets.where("title ILIKE :search OR description ILIKE :search", search: search_term)
         end
 
-        # Otimização e ordenação
         @tickets = @tickets.order(created_at: :desc).includes(:category, :requester, :technician, ticket_events: :user, photo_attachment: :blob)
 
-        # Gera o JSON incluindo a URL da foto
         tickets_json = @tickets.map do |ticket|
-          ticket.as_json(include: [:category, :requester, :technician, { ticket_events: { include: :user } }]).merge(
+          # Monta os dados do solicitante incluindo o avatar
+          requester_data = ticket.requester.as_json(only: [:id, :name, :email, :role, :identification]).merge(
+            avatar_url: ticket.requester.avatar.attached? ? Rails.application.routes.url_helpers.rails_blob_path(ticket.requester.avatar, only_path: true) : nil
+          )
+
+          # Monta os dados do técnico incluindo o avatar (se existir)
+          technician_data = ticket.technician&.as_json(only: [:id, :name, :email, :role, :identification])
+          if technician_data && ticket.technician.avatar.attached?
+            technician_data[:avatar_url] = Rails.application.routes.url_helpers.rails_blob_path(ticket.technician.avatar, only_path: true)
+          end
+
+          ticket.as_json(include: [{ ticket_events: { include: :user } }, :category]).merge(
+            requester: requester_data,
+            technician: technician_data,
             photo_url: ticket.photo.attached? ? Rails.application.routes.url_helpers.rails_blob_path(ticket.photo, only_path: true) : nil
           )
         end
@@ -34,10 +44,8 @@ module Api
         render json: tickets_json
       end
 
-      # POST /tickets
       def create
         @ticket = current_user.requested_tickets.new(ticket_params)
-        
         if @ticket.save
           render json: @ticket, status: :created
         else
@@ -45,10 +53,8 @@ module Api
         end
       end
 
-      # PATCH /tickets/:id/assume
       def assume
         @ticket = Ticket.find(params[:id])
-        
         if current_user.technician? && @ticket.status == 'aberto'
           @ticket.update(technician_id: current_user.id, status: 'em_atendimento')
           render json: @ticket, status: :ok
@@ -57,10 +63,8 @@ module Api
         end
       end
 
-      # PATCH /tickets/:id/update_status
       def update_status
         @ticket = Ticket.find(params[:id])
-        
         if current_user.technician? && @ticket.technician_id == current_user.id
           if @ticket.update(status: params[:status], solution: params[:solution])
             render json: @ticket, status: :ok
@@ -72,10 +76,8 @@ module Api
         end
       end
 
-      # PATCH /tickets/:id/assign
       def assign
         @ticket = Ticket.find(params[:id])
-        
         if current_user.manager?
           if @ticket.update(technician_id: params[:technician_id], status: 'em_atendimento')
             render json: @ticket, status: :ok
@@ -87,11 +89,9 @@ module Api
         end
       end
 
-      # POST /tickets/:id/add_comment
       def add_comment
         @ticket = Ticket.find(params[:id])
         @event = @ticket.ticket_events.new(user: current_user, content: params[:content])
-
         if @event.save
           render json: @event, status: :created
         else
@@ -102,7 +102,6 @@ module Api
       private
 
       def ticket_params
-        # Inclui o :photo na lista de permitidos
         params.require(:ticket).permit(:title, :description, :priority, :category_id, :photo)
       end
     end
