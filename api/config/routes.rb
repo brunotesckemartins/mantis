@@ -19,6 +19,8 @@ Rails.application.routes.draw do
       end
       
       resources :categories, only: [:index, :create, :update]
+      resources :sectors, only: [:index, :create]
+      resources :faqs, only: [:index, :create]
       
       get 'users/technicians', to: 'users#technicians'
       
@@ -26,7 +28,8 @@ Rails.application.routes.draw do
       get 'profile', to: 'users#profile'
       patch 'profile/avatar', to: 'users#update_avatar'
       patch 'profile/password', to: 'users#update_password'
-      patch 'profile/identification', to: 'users#update_identification' # <-- NOVA ROTA
+      patch 'profile/identification', to: 'users#update_identification'
+      patch 'profile/sector', to: 'users#update_sector'
       
       get 'dashboard', to: 'dashboards#index'
     end

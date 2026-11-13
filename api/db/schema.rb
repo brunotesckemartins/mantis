@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_11_11_174033) do
+ActiveRecord::Schema[8.1].define(version: 2026_11_13_120206) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -45,6 +45,22 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_11_174033) do
   create_table "categories", force: :cascade do |t|
     t.string "name"
     t.boolean "active"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+  end
+
+  create_table "faqs", force: :cascade do |t|
+    t.string "question"
+    t.string "answer"
+    t.string "category"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+  end
+
+  create_table "sectors", force: :cascade do |t|
+    t.string "name"
+    t.string "building"
+    t.string "description"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
   end
@@ -87,9 +103,11 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_11_174033) do
     t.datetime "updated_at", null: false
     t.string "jti"
     t.string "identification"
+    t.bigint "sector_id"
     t.index ["email"], name: "index_users_on_email", unique: true
     t.index ["jti"], name: "index_users_on_jti"
     t.index ["reset_password_token"], name: "index_users_on_reset_password_token", unique: true
+    t.index ["sector_id"], name: "index_users_on_sector_id"
   end
 
   add_foreign_key "active_storage_attachments", "active_storage_blobs", column: "blob_id"
@@ -99,4 +117,5 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_11_174033) do
   add_foreign_key "tickets", "categories"
   add_foreign_key "tickets", "users", column: "requester_id"
   add_foreign_key "tickets", "users", column: "technician_id"
+  add_foreign_key "users", "sectors"
 end

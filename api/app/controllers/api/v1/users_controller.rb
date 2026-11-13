@@ -18,7 +18,9 @@ module Api
           name: current_user.name,
           email: current_user.email,
           role: current_user.role,
-          identification: current_user.identification, # <-- Retornando a identificação
+          identification: current_user.identification,
+          sector_id: current_user.sector_id,
+          sector_name: current_user.sector&.name,
           avatar_url: current_user.avatar.attached? ? Rails.application.routes.url_helpers.rails_blob_path(current_user.avatar, only_path: true) : nil,
           stats: calculate_stats
         }
@@ -44,10 +46,17 @@ module Api
         end
       end
 
-      # NOVO MÉTODO
       def update_identification
         if current_user.update(identification: params[:identification])
           render json: { message: 'Identificação atualizada!' }, status: :ok
+        else
+          render json: { error: 'Erro ao atualizar.' }, status: :unprocessable_entity
+        end
+      end
+
+      def update_sector
+        if current_user.update(sector_id: params[:sector_id])
+          render json: { message: 'Setor atualizado!' }, status: :ok
         else
           render json: { error: 'Erro ao atualizar.' }, status: :unprocessable_entity
         end

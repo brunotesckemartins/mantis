@@ -13,25 +13,41 @@ export const DARK_COLORS = {
   accentSilver: '#C9D0D8',
   accentIce: '#AFC2D5',
   glassTint: 'rgba(255, 255, 255, 0.05)',
-  statusBar: 'light',
-  waveColors: ['rgba(201, 208, 216, 0.05)', 'transparent', 'rgba(175, 194, 213, 0.05)']
+  
+  // Status Semânticos (Minimalistas)
+  statusSuccess: '#98C379', // Verde acinzentado
+  statusWarning: '#E5C07B', // Âmbar suave
+  statusDanger: '#E06C75',  // Vermelho tijolo
+  statusInfo: '#61AFEF',    // Azul pálido
+  
+  waveColors: ['rgba(201, 208, 216, 0.05)', 'transparent', 'rgba(175, 194, 213, 0.05)'],
+  isDark: true
 };
 
-export const LIGHT_COLORS = {
-  background: '#E5E9F0',       // Fundo prateado claro
-  backgroundDeep: '#F8F9FA',   // Áreas mais claras
-  surface: 'rgba(255, 255, 255, 0.7)', // Vidro claro
+export const LIGHT_COLORS: typeof DARK_COLORS = {
+  background: '#E5E9F0',
+  backgroundDeep: '#F8F9FA',
+  surface: 'rgba(255, 255, 255, 0.7)',
   surfaceElevated: '#FFFFFF',  
   border: 'rgba(0, 0, 0, 0.08)', 
   textPrimary: '#1C1C1E',      
   textSecondary: '#4A4A4A',    
   textMuted: '#8E8E93',        
-  accentSilver: '#5E6C84',     // Cinza azulado elegante em vez de azul iOS
+  accentSilver: '#5E6C84',     
   accentIce: '#8FA1B8',        
   glassTint: 'rgba(0, 0, 0, 0.03)',
-  statusBar: 'dark',
-  waveColors: ['rgba(255, 255, 255, 0.4)', 'transparent', 'rgba(200, 210, 220, 0.3)'] // Ondas brancas brilhantes
+
+  // Status Semânticos (Versões mais escuras para fundo claro)
+  statusSuccess: '#50A14F',
+  statusWarning: '#C18401',
+  statusDanger: '#E45649',
+  statusInfo: '#4078F2',
+
+  waveColors: ['rgba(255, 255, 255, 0.4)', 'transparent', 'rgba(200, 210, 220, 0.3)'],
+  isDark: false
 };
+
+export type ThemeColors = typeof DARK_COLORS;
 
 export const SPACING = { xs: 4, sm: 8, md: 16, lg: 24, xl: 32 };
 

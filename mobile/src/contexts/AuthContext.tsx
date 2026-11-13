@@ -1,5 +1,6 @@
 // mobile/src/contexts/AuthContext.tsx
 import React, { createContext, useState, useEffect, ReactNode } from 'react';
+import { Platform } from 'react-native';
 import * as SecureStore from '../api/secureStore';
 import api from '../api/client';
 
@@ -25,18 +26,22 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   useEffect(() => {
     async function loadStorageData() {
-      const storedToken = await SecureStore.getItemAsync('mantis_token');
-      const storedUser = await SecureStore.getItemAsync('mantis_user');
+      try {
+        const storedToken = await SecureStore.getItemAsync('mantis_token');
+        const storedUser = await SecureStore.getItemAsync('mantis_user');
 
-      if (storedToken && storedUser) {
-        setUser(JSON.parse(storedUser));
+        if (storedToken && storedUser) {
+          setUser(JSON.parse(storedUser));
+        }
+      } catch (error) {
+        console.error('Erro ao carregar dados do storage', error);
+      } finally {
+        setLoading(false);
       }
-      setLoading(false);
     }
     loadStorageData();
   }, []);
 
-  // mobile/src/contexts/AuthContext.tsx
   async function signIn(email: string, pass: string) {
     try {
       const response = await api.post('/auth/login', {
@@ -55,16 +60,25 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       }
     } catch (error: any) {
       console.error("ERRO NO LOGIN:", error);
-      // Pega a mensagem de erro específica da API ou do Axios
       const msg = error.response?.data?.message || error.message || 'Erro desconhecido';
       throw new Error(`Erro: ${msg}`);
     }
   }
 
   async function signOut() {
-    await SecureStore.deleteItemAsync('mantis_token');
-    await SecureStore.deleteItemAsync('mantis_user');
-    setUser(null);
+    try {
+      await SecureStore.deleteItemAsync('mantis_token');
+      await SecureStore.deleteItemAsync('mantis_user');
+      setUser(null);
+
+      // Correção crucial para a versão Web: 
+      // Força o recarregamento da página para limpar o estado do React Navigation
+      if (Platform.OS === 'web') {
+        window.location.reload();
+      }
+    } catch (error) {
+      console.error('Erro ao fazer logout', error);
+    }
   }
 
   return (

@@ -23,12 +23,11 @@ module Api
         @tickets = @tickets.order(created_at: :desc).includes(:category, :requester, :technician, ticket_events: :user, photo_attachment: :blob)
 
         tickets_json = @tickets.map do |ticket|
-          # Monta os dados do solicitante incluindo o avatar
           requester_data = ticket.requester.as_json(only: [:id, :name, :email, :role, :identification]).merge(
+            sector_name: ticket.requester.sector&.name,
             avatar_url: ticket.requester.avatar.attached? ? Rails.application.routes.url_helpers.rails_blob_path(ticket.requester.avatar, only_path: true) : nil
           )
 
-          # Monta os dados do técnico incluindo o avatar (se existir)
           technician_data = ticket.technician&.as_json(only: [:id, :name, :email, :role, :identification])
           if technician_data && ticket.technician.avatar.attached?
             technician_data[:avatar_url] = Rails.application.routes.url_helpers.rails_blob_path(ticket.technician.avatar, only_path: true)

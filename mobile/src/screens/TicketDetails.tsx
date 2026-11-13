@@ -68,6 +68,7 @@ export default function TicketDetails({ route }: any) {
 
       <ScrollView style={styles.container}>
         <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+          
           <View style={[styles.requesterBox, { borderColor: colors.border }]}>
             {ticket.requester.avatar_url ? (
               <Image source={{ uri: `http://localhost:3000${ticket.requester.avatar_url}` }} style={styles.requesterAvatar} />
@@ -76,6 +77,14 @@ export default function TicketDetails({ route }: any) {
             )}
             <View style={{ marginLeft: 10, flex: 1 }}>
               <Text style={[styles.requesterName, { color: colors.textPrimary }]}>{ticket.requester.name}</Text>
+              
+              {/* SETOR AQUI */}
+              {ticket.requester.sector_name && (
+                <Text style={[styles.requesterId, { color: colors.accentSilver, fontWeight: 'bold' }]}>
+                  Setor: {ticket.requester.sector_name}
+                </Text>
+              )}
+              
               {ticket.requester.identification && <Text style={[styles.requesterId, { color: colors.textSecondary }]}>{ticket.requester.identification}</Text>}
             </View>
           </View>
@@ -110,19 +119,26 @@ export default function TicketDetails({ route }: any) {
                   {technicians.map(tech => <Picker.Item key={tech.id} label={tech.name} value={String(tech.id)} color={colors.textPrimary} />)}
                 </Picker>
               </View>
-              <TouchableOpacity style={[styles.button, { backgroundColor: '#AF52DE' }]} onPress={handleAssign}><Text style={styles.buttonText}>Atribuir Chamado</Text></TouchableOpacity>
+              {/* BOTAO ROXO CORRIGIDO */}
+              <TouchableOpacity style={[styles.button, { backgroundColor: colors.accentSilver }]} onPress={handleAssign}>
+                <Text style={[styles.buttonText, { color: colors.background }]}>Atribuir Chamado</Text>
+              </TouchableOpacity>
             </View>
           )}
 
           {userRole === 'technician' && ticket.status === 'aberto' && (
-            <TouchableOpacity style={[styles.button, { backgroundColor: '#FF9500' }]} onPress={handleAssume}><Text style={styles.buttonText}>Assumir Chamado</Text></TouchableOpacity>
+            <TouchableOpacity style={[styles.button, { backgroundColor: colors.accentSilver }]} onPress={handleAssume}>
+              <Text style={[styles.buttonText, { color: colors.background }]}>Assumir Chamado</Text>
+            </TouchableOpacity>
           )}
 
           {userRole === 'technician' && ticket.status === 'em_atendimento' && (
             <View style={{ marginTop: 20, borderTopWidth: 1, borderColor: colors.border, paddingTop: 15 }}>
               <Text style={[styles.label, { color: colors.textPrimary }]}>Registrar Solução:</Text>
               <TextInput style={[styles.input, { backgroundColor: colors.surfaceElevated, borderColor: colors.border, color: colors.textPrimary }]} placeholder="O que foi feito?" placeholderTextColor={colors.textMuted} multiline value={solutionText} onChangeText={setSolutionText} />
-              <TouchableOpacity style={[styles.button, { backgroundColor: '#34C759' }]} onPress={handleResolve}><Text style={styles.buttonText}>Marcar como Resolvido</Text></TouchableOpacity>
+              <TouchableOpacity style={[styles.button, { backgroundColor: colors.statusSuccess }]} onPress={handleResolve}>
+                <Text style={[styles.buttonText, { color: colors.background }]}>Marcar como Resolvido</Text>
+              </TouchableOpacity>
             </View>
           )}
         </View>
@@ -136,7 +152,9 @@ export default function TicketDetails({ route }: any) {
             </View>
           ))}
           <TextInput style={[styles.input, { marginTop: 15, backgroundColor: colors.surfaceElevated, borderColor: colors.border, color: colors.textPrimary }]} placeholder="Escreva um comentário..." placeholderTextColor={colors.textMuted} value={newComment} onChangeText={setNewComment} />
-          <TouchableOpacity style={[styles.button, { backgroundColor: colors.accentSilver }]} onPress={handleAddComment}><Text style={[styles.buttonText, { color: colors.background }]}>Enviar Comentário</Text></TouchableOpacity>
+          <TouchableOpacity style={[styles.button, { backgroundColor: colors.accentSilver }]} onPress={handleAddComment}>
+            <Text style={[styles.buttonText, { color: colors.background }]}>Enviar Comentário</Text>
+          </TouchableOpacity>
         </View>
       </ScrollView>
     </XmbBackground>

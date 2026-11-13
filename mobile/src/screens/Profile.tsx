@@ -1,6 +1,7 @@
 // mobile/src/screens/Profile.tsx
 import React, { useContext, useState, useEffect } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Image, TextInput, Alert, ScrollView } from 'react-native';
+import { Picker } from '@react-native-picker/picker';
 import { AuthContext } from '../contexts/AuthContext';
 import { ThemeContext } from '../contexts/ThemeContext';
 import * as ImagePicker from 'expo-image-picker';
@@ -8,27 +9,54 @@ import api from '../api/client';
 import XmbBackground from '../components/XmbBackground';
 
 export default function Profile() {
-  const { user, signOut } = useContext(AuthContext);
+  const { signOut } = useContext(AuthContext);
   const { colors } = useContext(ThemeContext);
   
   const [profileData, setProfileData] = useState<any>(null);
+  const [sectors, setSectors] = useState<any[]>([]);
+  const [selectedSector, setSelectedSector] = useState<string>('');
+  
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [identification, setIdentification] = useState('');
 
-  useEffect(() => { fetchProfile(); }, []);
+  useEffect(() => { 
+    fetchProfile(); 
+    api.get('/api/v1/sectors').then(res => setSectors(res.data)).catch(console.error);
+  }, []);
 
   async function fetchProfile() {
     try {
       const response = await api.get('/api/v1/profile');
       setProfileData(response.data);
       setIdentification(response.data.identification || '');
+      if (response.data.sector_id) setSelectedSector(String(response.data.sector_id));
     } catch (error) { console.error(error); }
   }
 
   async function handlePickAvatar() {
-    const result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ImagePicker.MediaTypeOptions.Images, allowsEditing: true, aspect: [1, 1], quality: 0.5 });
-    if (!result.canceled) uploadAvatar(result.assets[0].uri);
+    Alert.alert('Foto de Perfil', 'Escolha a origem da imagem:', [
+      { text: 'Câmera', onPress: () => launchAvatarPicker('camera') },
+      { text: 'Galeria', onPress: () => launchAvatarPicker('gallery') },
+      { text: 'Cancelar', style: 'cancel' }
+    ]);
+  }
+
+  async function launchAvatarPicker(source: 'camera' | 'gallery') {
+    try {
+      let result;
+      if (source === 'camera') {
+        const { status } = await ImagePicker.requestCameraPermissionsAsync();
+        if (status !== 'granted') return Alert.alert('Permissão Negada', 'Precisamos de acesso à câmera.');
+        result = await ImagePicker.launchCameraAsync({ allowsEditing: true, aspect: [1, 1], quality: 0.5 });
+      } else {
+        const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+        if (status !== 'granted') return Alert.alert('Permissão Negada', 'Precisamos de acesso à galeria.');
+        result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ImagePicker.MediaTypeOptions.Images, allowsEditing: true, aspect: [1, 1], quality: 0.5 });
+      }
+
+      if (!result.canceled) uploadAvatar(result.assets[0].uri);
+    } catch (error) { Alert.alert('Erro', 'Erro ao acessar a mídia.'); }
   }
 
   async function uploadAvatar(uri: string) {
@@ -43,13 +71,13 @@ export default function Profile() {
     } catch (error) { Alert.alert('Erro', 'Não foi possível atualizar a foto.'); }
   }
 
-  async function handleChangePassword() {
-    if (!currentPassword || !newPassword) return Alert.alert('Atenção', 'Preencha ambas as senhas.');
+  async function handleUpdateSector() {
+    if (!selectedSector) return;
     try {
-      await api.patch('/api/v1/profile/password', { current_password: currentPassword, new_password: newPassword });
-      Alert.alert('Sucesso', 'Senha alterada com sucesso!');
-      setCurrentPassword(''); setNewPassword('');
-    } catch (error: any) { Alert.alert('Erro', error.response?.data?.error || 'Erro ao alterar senha.'); }
+      await api.patch('/api/v1/profile/sector', { sector_id: Number(selectedSector) });
+      Alert.alert('Sucesso', 'Setor atualizado!');
+      fetchProfile();
+    } catch (error) { Alert.alert('Erro', 'Erro ao atualizar setor.'); }
   }
 
   async function handleUpdateIdentification() {
@@ -58,6 +86,15 @@ export default function Profile() {
       Alert.alert('Sucesso', 'Identificação atualizada!');
       fetchProfile();
     } catch (error) { Alert.alert('Erro', 'Erro ao atualizar identificação.'); }
+  }
+
+  async function handleChangePassword() {
+    if (!currentPassword || !newPassword) return Alert.alert('Atenção', 'Preencha ambas as senhas.');
+    try {
+      await api.patch('/api/v1/profile/password', { current_password: currentPassword, new_password: newPassword });
+      Alert.alert('Sucesso', 'Senha alterada com sucesso!');
+      setCurrentPassword(''); setNewPassword('');
+    } catch (error: any) { Alert.alert('Erro', error.response?.data?.error || 'Erro ao alterar senha.'); }
   }
 
   const roleNames: any = { requester: 'Solicitante', technician: 'Técnico', manager: 'Gestor' };
@@ -71,36 +108,72 @@ export default function Profile() {
             {profileData.avatar_url ? (
               <Image source={{ uri: `http://localhost:3000${profileData.avatar_url}` }} style={styles.avatarImage} />
             ) : (
-              <View style={[styles.avatarPlaceholder, { backgroundColor: colors.accentSilver }]}><Text style={[styles.avatarText, { color: colors.background }]}>{profileData.name.charAt(0).toUpperCase()}</Text></View>
+              <View style={[styles.avatarPlaceholder, { backgroundColor: colors.accentSilver }]}>
+                <Text style={[styles.avatarText, { color: colors.background }]}>{profileData.name.charAt(0).toUpperCase()}</Text>
+              </View>
             )}
             <Text style={[styles.changePhotoText, { color: colors.accentSilver }]}>Alterar Foto</Text>
           </TouchableOpacity>
           <Text style={[styles.name, { color: colors.textPrimary }]}>{profileData.name}</Text>
           <Text style={[styles.email, { color: colors.textSecondary }]}>{profileData.email}</Text>
-          <View style={[styles.roleBadge, { backgroundColor: colors.surfaceElevated }]}><Text style={[styles.roleText, { color: colors.textPrimary }]}>{roleNames[profileData.role]}</Text></View>
+          <View style={[styles.roleBadge, { backgroundColor: colors.surfaceElevated, borderWidth: 1, borderColor: colors.border }]}>
+            <Text style={[styles.roleText, { color: colors.textPrimary }]}>{roleNames[profileData.role]}</Text>
+          </View>
         </View>
 
         <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>Identificação</Text>
-        <View style={[styles.passwordBox, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-          <TextInput style={[styles.input, { backgroundColor: colors.backgroundDeep, borderColor: colors.border, color: colors.textPrimary }]} placeholder="Ex: Aluno de Eng. Software - Bloco A" placeholderTextColor={colors.textMuted} value={identification} onChangeText={setIdentification} />
-          <TouchableOpacity style={[styles.button, { backgroundColor: '#34C759' }]} onPress={handleUpdateIdentification}><Text style={styles.buttonText}>Salvar Identificação</Text></TouchableOpacity>
+        <View style={[styles.box, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+          <TextInput 
+            style={[styles.input, { backgroundColor: colors.backgroundDeep, borderColor: colors.border, color: colors.textPrimary }]} 
+            placeholder="Ex: Professor de Física II" 
+            placeholderTextColor={colors.textMuted} 
+            value={identification} 
+            onChangeText={setIdentification} 
+          />
+          <TouchableOpacity style={[styles.button, { backgroundColor: colors.accentSilver, marginBottom: 15 }]} onPress={handleUpdateIdentification}>
+            <Text style={[styles.buttonText, { color: colors.background }]}>Salvar Identificação</Text>
+          </TouchableOpacity>
+
+          <Text style={[styles.label, { color: colors.textSecondary, marginBottom: 5 }]}>Meu Setor/Bloco:</Text>
+          <View style={[styles.pickerContainer, { backgroundColor: colors.backgroundDeep, borderColor: colors.border }]}>
+            <Picker selectedValue={selectedSector} onValueChange={setSelectedSector} style={{ color: colors.textPrimary }} dropdownIconColor={colors.textPrimary}>
+              <Picker.Item label="Selecione um setor..." value="" color={colors.textPrimary} />
+              {sectors.map(sec => <Picker.Item key={sec.id} label={`${sec.name} (${sec.building})`} value={String(sec.id)} color={colors.textPrimary} />)}
+            </Picker>
+          </View>
+          <TouchableOpacity style={[styles.button, { backgroundColor: colors.accentIce }]} onPress={handleUpdateSector}>
+            <Text style={[styles.buttonText, { color: colors.background }]}>Salvar Setor</Text>
+          </TouchableOpacity>
         </View>
 
         <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>Minhas Estatísticas</Text>
         <View style={styles.statsRow}>
-          <View style={[styles.statBox, { backgroundColor: colors.surface, borderColor: colors.border }]}><Text style={[styles.statNumber, { color: colors.accentSilver }]}>{profileData.stats.total}</Text><Text style={[styles.statLabel, { color: colors.textSecondary }]}>Total</Text></View>
-          <View style={[styles.statBox, { backgroundColor: colors.surface, borderColor: colors.border }]}><Text style={[styles.statNumber, { color: '#4CAF50' }]}>{profileData.stats.resolvidos}</Text><Text style={[styles.statLabel, { color: colors.textSecondary }]}>Resolvidos</Text></View>
-          <View style={[styles.statBox, { backgroundColor: colors.surface, borderColor: colors.border }]}><Text style={[styles.statNumber, { color: '#FF9800' }]}>{profileData.stats.pendentes}</Text><Text style={[styles.statLabel, { color: colors.textSecondary }]}>Pendentes</Text></View>
+          <View style={[styles.statBox, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+            <Text style={[styles.statNumber, { color: colors.textPrimary }]}>{profileData.stats.total}</Text>
+            <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Total</Text>
+          </View>
+          <View style={[styles.statBox, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+            <Text style={[styles.statNumber, { color: colors.statusSuccess }]}>{profileData.stats.resolvidos}</Text>
+            <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Resolvidos</Text>
+          </View>
+          <View style={[styles.statBox, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+            <Text style={[styles.statNumber, { color: colors.statusWarning }]}>{profileData.stats.pendentes}</Text>
+            <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Pendentes</Text>
+          </View>
         </View>
 
         <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>Segurança</Text>
-        <View style={[styles.passwordBox, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+        <View style={[styles.box, { backgroundColor: colors.surface, borderColor: colors.border }]}>
           <TextInput style={[styles.input, { backgroundColor: colors.backgroundDeep, borderColor: colors.border, color: colors.textPrimary }]} placeholder="Senha Atual" placeholderTextColor={colors.textMuted} secureTextEntry value={currentPassword} onChangeText={setCurrentPassword} />
           <TextInput style={[styles.input, { backgroundColor: colors.backgroundDeep, borderColor: colors.border, color: colors.textPrimary }]} placeholder="Nova Senha" placeholderTextColor={colors.textMuted} secureTextEntry value={newPassword} onChangeText={setNewPassword} />
-          <TouchableOpacity style={[styles.button, { backgroundColor: colors.accentSilver }]} onPress={handleChangePassword}><Text style={[styles.buttonText, { color: colors.background }]}>Alterar Senha</Text></TouchableOpacity>
+          <TouchableOpacity style={[styles.button, { backgroundColor: colors.accentSilver }]} onPress={handleChangePassword}>
+            <Text style={[styles.buttonText, { color: colors.background }]}>Alterar Senha</Text>
+          </TouchableOpacity>
         </View>
 
-        <TouchableOpacity style={[styles.logoutButton, { backgroundColor: '#FF3B30' }]} onPress={signOut}><Text style={styles.logoutText}>Sair da Conta</Text></TouchableOpacity>
+        <TouchableOpacity style={[styles.logoutButton, { backgroundColor: colors.statusDanger }]} onPress={signOut}>
+          <Text style={[styles.logoutText, { color: colors.background }]}>Sair da Conta</Text>
+        </TouchableOpacity>
         <View style={{ height: 40 }} />
       </ScrollView>
     </XmbBackground>
@@ -123,10 +196,11 @@ const styles = StyleSheet.create({
   statBox: { width: '30%', padding: 15, borderRadius: 10, alignItems: 'center', borderWidth: 1 },
   statNumber: { fontSize: 24, fontWeight: 'bold' },
   statLabel: { fontSize: 12, marginTop: 5 },
-  passwordBox: { padding: 15, marginHorizontal: 15, borderRadius: 10, borderWidth: 1 },
+  box: { padding: 15, marginHorizontal: 15, borderRadius: 10, borderWidth: 1 },
   input: { borderWidth: 1, borderRadius: 8, padding: 10, marginBottom: 10, fontSize: 16 },
+  pickerContainer: { borderWidth: 1, borderRadius: 8, marginBottom: 10, overflow: 'hidden' },
   button: { padding: 12, borderRadius: 8, alignItems: 'center' },
-  buttonText: { color: '#fff', fontWeight: 'bold', fontSize: 16 },
+  buttonText: { fontWeight: 'bold', fontSize: 16 },
   logoutButton: { marginHorizontal: 15, marginTop: 30, padding: 15, borderRadius: 8, alignItems: 'center' },
-  logoutText: { color: '#fff', fontWeight: 'bold', fontSize: 16 }
+  logoutText: { fontWeight: 'bold', fontSize: 16 }
 });

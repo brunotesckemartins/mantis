@@ -8,13 +8,14 @@ import { ThemeContext } from '../contexts/ThemeContext';
 import XmbBackground from '../components/XmbBackground';
 
 export default function NewTicket({ navigation }: any) {
+  const { colors } = useContext(ThemeContext);
+  
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [priority, setPriority] = useState('media');
   const [categories, setCategories] = useState<any[]>([]);
   const [categoryId, setCategoryId] = useState<string>('');
   const [image, setImage] = useState<string | null>(null);
-  const { colors, isDark } = useContext(ThemeContext);
 
   useEffect(() => {
     api.get('/api/v1/categories').then(res => {
@@ -23,19 +24,42 @@ export default function NewTicket({ navigation }: any) {
     });
   }, []);
 
+  // --- LÓGICA DE FOTO E PERMISSÕES ---
   async function pickImage() {
-    const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (permissionResult.granted === false) return Alert.alert("Permissão necessária", "Permita o acesso à galeria.");
+    Alert.alert('Adicionar Foto', 'Escolha a origem da imagem:', [
+      { text: 'Câmera', onPress: () => launchImagePicker('camera') },
+      { text: 'Galeria', onPress: () => launchImagePicker('gallery') },
+      { text: 'Cancelar', style: 'cancel' }
+    ]);
+  }
 
-    const result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ImagePicker.MediaTypeOptions.Images, allowsEditing: true, aspect: [4, 3], quality: 0.5 });
+  async function launchImagePicker(source: 'camera' | 'gallery') {
+    try {
+      let result;
+      if (source === 'camera') {
+        const { status } = await ImagePicker.requestCameraPermissionsAsync();
+        if (status !== 'granted') {
+          return Alert.alert('Permissão Negada', 'Precisamos de acesso à câmera para tirar a foto do problema.');
+        }
+        result = await ImagePicker.launchCameraAsync({ allowsEditing: true, aspect: [4, 3], quality: 0.5 });
+      } else {
+        const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+        if (status !== 'granted') {
+          return Alert.alert('Permissão Negada', 'Precisamos de acesso à galeria para anexar a imagem.');
+        }
+        result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ImagePicker.MediaTypeOptions.Images, allowsEditing: true, aspect: [4, 3], quality: 0.5 });
+      }
 
-    if (!result.canceled) {
-      const uri = result.assets[0].uri;
-      setImage(uri);
-      Alert.alert("Foto de Perfil", "Deseja salvar esta foto também como sua foto de perfil?", [
-        { text: "Não", style: "cancel" },
-        { text: "Sim", onPress: () => saveAsProfilePic(uri) }
-      ]);
+      if (!result.canceled) {
+        const uri = result.assets[0].uri;
+        setImage(uri);
+        Alert.alert("Foto de Perfil", "Deseja salvar esta foto também como sua foto de perfil?", [
+          { text: "Não", style: "cancel" },
+          { text: "Sim", onPress: () => saveAsProfilePic(uri) }
+        ]);
+      }
+    } catch (error) {
+      Alert.alert('Erro', 'Ocorreu um erro ao acessar a câmera/galeria.');
     }
   }
 
@@ -46,6 +70,7 @@ export default function NewTicket({ navigation }: any) {
     formData.append('avatar', blob, `avatar.jpg`);
     try {
       await api.patch('/api/v1/profile/avatar', formData, { headers: { 'Content-Type': 'multipart/form-data' } });
+      Alert.alert('Sucesso', 'Sua foto de perfil foi atualizada!');
     } catch (error) { console.error(error); }
   }
 
@@ -75,10 +100,23 @@ export default function NewTicket({ navigation }: any) {
     <XmbBackground>
       <ScrollView style={styles.container}>
         <Text style={[styles.label, { color: colors.textPrimary }]}>Título do Problema</Text>
-        <TextInput style={[styles.input, { backgroundColor: colors.surface, borderColor: colors.border, color: colors.textPrimary }]} value={title} onChangeText={setTitle} placeholder="Ex: Computador não liga" placeholderTextColor={colors.textMuted} />
+        <TextInput 
+          style={[styles.input, { backgroundColor: colors.surface, borderColor: colors.border, color: colors.textPrimary }]} 
+          value={title} 
+          onChangeText={setTitle} 
+          placeholder="Ex: Computador não liga" 
+          placeholderTextColor={colors.textMuted} 
+        />
         
         <Text style={[styles.label, { color: colors.textPrimary }]}>Descrição</Text>
-        <TextInput style={[styles.input, styles.textArea, { backgroundColor: colors.surface, borderColor: colors.border, color: colors.textPrimary }]} value={description} onChangeText={setDescription} multiline placeholder="Descreva o problema..." placeholderTextColor={colors.textMuted} />
+        <TextInput 
+          style={[styles.input, styles.textArea, { backgroundColor: colors.surface, borderColor: colors.border, color: colors.textPrimary }]} 
+          value={description} 
+          onChangeText={setDescription} 
+          multiline 
+          placeholder="Descreva o problema com detalhes..." 
+          placeholderTextColor={colors.textMuted} 
+        />
         
         <Text style={[styles.label, { color: colors.textPrimary }]}>Categoria</Text>
         <View style={[styles.pickerContainer, { backgroundColor: colors.surface, borderColor: colors.border }]}>
@@ -90,8 +128,10 @@ export default function NewTicket({ navigation }: any) {
         <Text style={[styles.label, { color: colors.textPrimary }]}>Prioridade</Text>
         <View style={[styles.pickerContainer, { backgroundColor: colors.surface, borderColor: colors.border }]}>
           <Picker selectedValue={priority} onValueChange={setPriority} style={{ color: colors.textPrimary }} dropdownIconColor={colors.textPrimary}>
-            <Picker.Item label="Baixa" value="baixa" color={colors.textPrimary} /><Picker.Item label="Média" value="media" color={colors.textPrimary} />
-            <Picker.Item label="Alta" value="alta" color={colors.textPrimary} /><Picker.Item label="Crítica" value="critica" color={colors.textPrimary} />
+            <Picker.Item label="Baixa" value="baixa" color={colors.textPrimary} />
+            <Picker.Item label="Média" value="media" color={colors.textPrimary} />
+            <Picker.Item label="Alta" value="alta" color={colors.textPrimary} />
+            <Picker.Item label="Crítica" value="critica" color={colors.textPrimary} />
           </Picker>
         </View>
 

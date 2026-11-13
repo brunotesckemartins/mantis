@@ -5,6 +5,7 @@ import { BlurView } from 'expo-blur';
 import api from '../api/client';
 import { ThemeContext } from '../contexts/ThemeContext';
 import XmbBackground from '../components/XmbBackground';
+import { SPACING } from '../theme';
 
 export default function Dashboard() {
   const [data, setData] = useState<any>(null);
@@ -16,69 +17,39 @@ export default function Dashboard() {
       .catch(err => console.error('Erro ao buscar dashboard:', err));
   }, []);
 
-  if (!data) {
-    return (
-      <XmbBackground>
-        <Text style={{ textAlign: 'center', marginTop: 50, color: colors.textPrimary }}>Carregando métricas...</Text>
-      </XmbBackground>
-    );
-  }
+  if (!data) return <XmbBackground><Text style={{ textAlign: 'center', marginTop: 50, color: colors.textPrimary }}>Carregando métricas...</Text></XmbBackground>;
+
+  const renderCard = (title: string, value: number, color: string) => (
+    <View style={styles.cardWrapper}>
+      <BlurView intensity={isDark ? 20 : 50} tint={isDark ? 'dark' : 'light'} style={StyleSheet.absoluteFill} />
+      <View style={[styles.card, { backgroundColor: colors.glassTint, borderColor: colors.border }]}>
+        <Text style={[styles.cardNumber, { color }]}>{value}</Text>
+        <Text style={[styles.cardLabel, { color: colors.textSecondary }]}>{title}</Text>
+      </View>
+    </View>
+  );
 
   return (
     <XmbBackground>
       <ScrollView style={styles.container}>
         <View style={styles.grid}>
-          {/* Cartão Total */}
-          <View style={styles.cardWrapper}>
-            <BlurView intensity={isDark ? 20 : 50} tint={isDark ? 'dark' : 'light'} style={StyleSheet.absoluteFill} />
-            <View style={[styles.card, { backgroundColor: colors.glassTint }]}>
-              <Text style={[styles.cardNumber, { color: colors.textPrimary }]}>{data.total}</Text>
-              <Text style={[styles.cardLabel, { color: colors.textSecondary }]}>Total de Chamados</Text>
-            </View>
-          </View>
-
-          {/* Cartão Abertos */}
-          <View style={styles.cardWrapper}>
-            <BlurView intensity={isDark ? 20 : 50} tint={isDark ? 'dark' : 'light'} style={StyleSheet.absoluteFill} />
-            <View style={[styles.card, { backgroundColor: colors.glassTint }]}>
-              <Text style={[styles.cardNumber, { color: '#FF9F0A' }]}>{data.abertos}</Text>
-              <Text style={[styles.cardLabel, { color: colors.textSecondary }]}>Abertos</Text>
-            </View>
-          </View>
-
-          {/* Cartão Em Atendimento */}
-          <View style={styles.cardWrapper}>
-            <BlurView intensity={isDark ? 20 : 50} tint={isDark ? 'dark' : 'light'} style={StyleSheet.absoluteFill} />
-            <View style={[styles.card, { backgroundColor: colors.glassTint }]}>
-              <Text style={[styles.cardNumber, { color: '#BF5AF2' }]}>{data.em_atendimento}</Text>
-              <Text style={[styles.cardLabel, { color: colors.textSecondary }]}>Em Atendimento</Text>
-            </View>
-          </View>
-
-          {/* Cartão Resolvidos */}
-          <View style={styles.cardWrapper}>
-            <BlurView intensity={isDark ? 20 : 50} tint={isDark ? 'dark' : 'light'} style={StyleSheet.absoluteFill} />
-            <View style={[styles.card, { backgroundColor: colors.glassTint }]}>
-              <Text style={[styles.cardNumber, { color: '#30D158' }]}>{data.resolvidos}</Text>
-              <Text style={[styles.cardLabel, { color: colors.textSecondary }]}>Resolvidos</Text>
-            </View>
-          </View>
+          {renderCard('Total de Chamados', data.total, colors.textPrimary)}
+          {renderCard('Abertos', data.abertos, colors.statusInfo)}
+          {renderCard('Em Atendimento', data.em_atendimento, colors.statusWarning)}
+          {renderCard('Resolvidos', data.resolvidos, colors.statusSuccess)}
         </View>
 
-        <View style={styles.rankingWrapper}>
+        <View style={[styles.rankingWrapper, { borderColor: colors.border }]}>
           <BlurView intensity={isDark ? 20 : 50} tint={isDark ? 'dark' : 'light'} style={StyleSheet.absoluteFill} />
           <View style={[styles.rankingBox, { backgroundColor: colors.glassTint }]}>
             <Text style={[styles.rankingTitle, { color: colors.textPrimary }]}>🏆 Ranking de Técnicos</Text>
-            <Text style={[styles.rankingSubtitle, { color: colors.textSecondary }]}>Chamados resolvidos</Text>
-
+            
             {data.ranking.map((tech: any, index: number) => (
               <View key={index} style={[styles.rankingItem, { borderBottomColor: colors.border }]}>
                 <Text style={[styles.rankingName, { color: colors.textPrimary }]}>{index + 1}º {tech.name}</Text>
-                <Text style={[styles.rankingCount, { color: '#30D158' }]}>{tech.resolved_count}</Text>
+                <Text style={[styles.rankingCount, { color: colors.statusSuccess }]}>{tech.resolved_count}</Text>
               </View>
             ))}
-            
-            {data.ranking.length === 0 && <Text style={{ color: colors.textMuted }}>Nenhum técnico cadastrado.</Text>}
           </View>
         </View>
       </ScrollView>
@@ -87,17 +58,16 @@ export default function Dashboard() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, padding: 15 },
+  container: { flex: 1, padding: SPACING.md },
   grid: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between' },
-  cardWrapper: { width: '48%', borderRadius: 12, marginBottom: 15, overflow: 'hidden', borderWidth: 1, borderColor: 'rgba(255,255,255,0.1)' },
-  card: { padding: 20 },
-  cardNumber: { fontSize: 32, fontWeight: 'bold', marginBottom: 5 },
-  cardLabel: { fontSize: 14, fontWeight: '600' },
-  rankingWrapper: { borderRadius: 12, marginTop: 10, marginBottom: 50, overflow: 'hidden', borderWidth: 1, borderColor: 'rgba(255,255,255,0.1)' },
-  rankingBox: { padding: 20 },
-  rankingTitle: { fontSize: 20, fontWeight: 'bold', marginBottom: 5 },
-  rankingSubtitle: { fontSize: 14, marginBottom: 15 },
-  rankingItem: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 12, borderBottomWidth: 1 },
-  rankingName: { fontSize: 16, fontWeight: '500' },
+  cardWrapper: { width: '48%', borderRadius: 12, marginBottom: SPACING.md, overflow: 'hidden', borderWidth: 1, borderColor: 'rgba(255,255,255,0.05)' },
+  card: { padding: SPACING.lg, borderWidth: 1 },
+  cardNumber: { fontSize: 32, fontWeight: '300', marginBottom: 5 },
+  cardLabel: { fontSize: 14, fontWeight: '500' },
+  rankingWrapper: { borderRadius: 12, marginTop: SPACING.sm, marginBottom: 50, overflow: 'hidden', borderWidth: 1 },
+  rankingBox: { padding: SPACING.lg },
+  rankingTitle: { fontSize: 18, fontWeight: 'bold', marginBottom: SPACING.md },
+  rankingItem: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: SPACING.sm, borderBottomWidth: 1 },
+  rankingName: { fontSize: 16, fontWeight: '400' },
   rankingCount: { fontSize: 16, fontWeight: 'bold' }
 });

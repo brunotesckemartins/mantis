@@ -16,6 +16,8 @@ import TicketDetails from './src/screens/TicketDetails';
 import Dashboard from './src/screens/Dashboard';
 import ManageCategories from './src/screens/ManageCategories';
 import Profile from './src/screens/Profile';
+import Sectors from './src/screens/Sectors'; // <-- Importando Setores
+import Faq from './src/screens/Faq'; // <-- Importando FAQ
 
 const Stack = createNativeStackNavigator();
 
@@ -49,6 +51,8 @@ function AppRoutes() {
             <Stack.Screen name="Dashboard" component={Dashboard} options={{ headerShown: true, title: 'Painel' }} />
             <Stack.Screen name="ManageCategories" component={ManageCategories} options={{ headerShown: true, title: 'Categorias' }} />
             <Stack.Screen name="Profile" component={Profile} options={{ headerShown: true, title: 'Perfil' }} />
+            <Stack.Screen name="Sectors" component={Sectors} options={{ headerShown: true, title: 'Setores' }} />
+            <Stack.Screen name="Faq" component={Faq} options={{ headerShown: true, title: 'Base de Conhecimento' }} />
           </>
         ) : (
           <Stack.Screen name="Login" component={Login} />
