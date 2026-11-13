@@ -22,31 +22,13 @@ module Api
 
         @tickets = @tickets.order(created_at: :desc).includes(:category, :requester, :technician, ticket_events: :user, photo_attachment: :blob)
 
-        tickets_json = @tickets.map do |ticket|
-          requester_data = ticket.requester.as_json(only: [:id, :name, :email, :role, :identification]).merge(
-            sector_name: ticket.requester.sector&.name,
-            avatar_url: ticket.requester.avatar.attached? ? Rails.application.routes.url_helpers.rails_blob_path(ticket.requester.avatar, only_path: true) : nil
-          )
-
-          technician_data = ticket.technician&.as_json(only: [:id, :name, :email, :role, :identification])
-          if technician_data && ticket.technician.avatar.attached?
-            technician_data[:avatar_url] = Rails.application.routes.url_helpers.rails_blob_path(ticket.technician.avatar, only_path: true)
-          end
-
-          ticket.as_json(include: [{ ticket_events: { include: :user } }, :category]).merge(
-            requester: requester_data,
-            technician: technician_data,
-            photo_url: ticket.photo.attached? ? Rails.application.routes.url_helpers.rails_blob_path(ticket.photo, only_path: true) : nil
-          )
-        end
-
-        render json: tickets_json
+        render json: @tickets.map { |t| ticket_json(t) }
       end
 
       def create
         @ticket = current_user.requested_tickets.new(ticket_params)
         if @ticket.save
-          render json: @ticket, status: :created
+          render json: ticket_json(@ticket), status: :created
         else
           render json: { errors: @ticket.errors.full_messages }, status: :unprocessable_entity
         end
@@ -56,7 +38,7 @@ module Api
         @ticket = Ticket.find(params[:id])
         if current_user.technician? && @ticket.status == 'aberto'
           @ticket.update(technician_id: current_user.id, status: 'em_atendimento')
-          render json: @ticket, status: :ok
+          render json: ticket_json(@ticket), status: :ok
         else
           render json: { error: 'Não é possível assumir este chamado.' }, status: :unprocessable_entity
         end
@@ -66,7 +48,7 @@ module Api
         @ticket = Ticket.find(params[:id])
         if current_user.technician? && @ticket.technician_id == current_user.id
           if @ticket.update(status: params[:status], solution: params[:solution])
-            render json: @ticket, status: :ok
+            render json: ticket_json(@ticket), status: :ok
           else
             render json: { errors: @ticket.errors.full_messages }, status: :unprocessable_entity
           end
@@ -79,7 +61,7 @@ module Api
         @ticket = Ticket.find(params[:id])
         if current_user.manager?
           if @ticket.update(technician_id: params[:technician_id], status: 'em_atendimento')
-            render json: @ticket, status: :ok
+            render json: ticket_json(@ticket), status: :ok
           else
             render json: { errors: @ticket.errors.full_messages }, status: :unprocessable_entity
           end
@@ -102,6 +84,25 @@ module Api
 
       def ticket_params
         params.require(:ticket).permit(:title, :description, :priority, :category_id, :photo)
+      end
+
+      # Função mágica que monta o JSON completo e padronizado do chamado
+      def ticket_json(ticket)
+        requester_data = ticket.requester.as_json(only: [:id, :name, :email, :role, :identification]).merge(
+          sector_name: ticket.requester.sector&.name,
+          avatar_url: ticket.requester.avatar.attached? ? Rails.application.routes.url_helpers.rails_blob_path(ticket.requester.avatar, only_path: true) : nil
+        )
+
+        technician_data = ticket.technician&.as_json(only: [:id, :name, :email, :role, :identification])
+        if technician_data && ticket.technician.avatar.attached?
+          technician_data[:avatar_url] = Rails.application.routes.url_helpers.rails_blob_path(ticket.technician.avatar, only_path: true)
+        end
+
+        ticket.as_json(include: [{ ticket_events: { include: :user } }, :category]).merge(
+          requester: requester_data,
+          technician: technician_data,
+          photo_url: ticket.photo.attached? ? Rails.application.routes.url_helpers.rails_blob_path(ticket.photo, only_path: true) : nil
+        )
       end
     end
   end

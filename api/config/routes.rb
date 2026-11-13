@@ -1,7 +1,7 @@
 Rails.application.routes.draw do
   devise_for :users, 
     path: "auth", 
-    path_names: { sign_in: "login", sign_out: "logout", registration: "register" },
+    path_names: { sign_in: "login", sign_out: "logout" },
     controllers: {
       sessions: 'api/v1/sessions',
       registrations: 'api/v1/registrations'
@@ -23,8 +23,6 @@ Rails.application.routes.draw do
       resources :faqs, only: [:index, :create]
       
       get 'users/technicians', to: 'users#technicians'
-      
-      # --- ROTAS DO PERFIL ---
       get 'profile', to: 'users#profile'
       patch 'profile/avatar', to: 'users#update_avatar'
       patch 'profile/password', to: 'users#update_password'

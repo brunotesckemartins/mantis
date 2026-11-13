@@ -1,11 +1,11 @@
 // mobile/src/screens/TicketDetails.tsx
 import React, { useState, useEffect, useContext } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, Alert, ScrollView, TextInput, Image, Modal } from 'react-native';
-import { Picker } from '@react-native-picker/picker';
 import api from '../api/client';
 import { AuthContext } from '../contexts/AuthContext';
 import { ThemeContext } from '../contexts/ThemeContext';
 import XmbBackground from '../components/XmbBackground';
+import CustomSelect from '../components/CustomSelect';
 
 export default function TicketDetails({ route }: any) {
   const { ticket: initialTicket, userRole } = route.params;
@@ -38,14 +38,14 @@ export default function TicketDetails({ route }: any) {
   async function handleAssume() {
     try {
       const response = await api.patch(`/api/v1/tickets/${ticket.id}/assume`);
-      setTicket({ ...ticket, status: response.data.status, technician: response.data.technician }); Alert.alert('Sucesso', 'Chamado assumido!');
+      setTicket(response.data); Alert.alert('Sucesso', 'Chamado assumido!');
     } catch (error) { Alert.alert('Erro', 'Falha ao assumir.'); }
   }
   async function handleResolve() {
     if (!solutionText) return Alert.alert('Atenção', 'Descreva a solução antes de resolver.');
     try {
       const response = await api.patch(`/api/v1/tickets/${ticket.id}/update_status`, { status: 'resolvido', solution: solutionText });
-      setTicket({ ...ticket, status: response.data.status, solution: response.data.solution }); Alert.alert('Sucesso', 'Chamado resolvido!');
+      setTicket(response.data); Alert.alert('Sucesso', 'Chamado resolvido!');
     } catch (error) { Alert.alert('Erro', 'Falha ao resolver.'); }
   }
   async function handleAddComment() {
@@ -57,9 +57,11 @@ export default function TicketDetails({ route }: any) {
     } catch (error) { Alert.alert('Erro', 'Falha ao comentar.'); }
   }
 
+  const techOptions = technicians.map(t => ({ label: t.name, value: String(t.id) }));
+
   return (
     <XmbBackground>
-      <Modal visible={isZoomed} transparent={true} animationType="fade">
+      <Modal visible={isZoomed} transparent animationType="fade">
         <View style={styles.modalBackground}>
           <TouchableOpacity style={styles.closeModalBtn} onPress={() => setIsZoomed(false)}><Text style={{ color: '#fff', fontSize: 18, fontWeight: 'bold' }}>Fechar</Text></TouchableOpacity>
           <Image source={{ uri: `http://localhost:3000${ticket.photo_url}` }} style={styles.zoomedImage} resizeMode="contain" />
@@ -70,22 +72,24 @@ export default function TicketDetails({ route }: any) {
         <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}>
           
           <View style={[styles.requesterBox, { borderColor: colors.border }]}>
-            {ticket.requester.avatar_url ? (
+            {/* PROTEÇÃO CONTRA DADOS VAZIOS AQUI (requester?) */}
+            {ticket.requester?.avatar_url ? (
               <Image source={{ uri: `http://localhost:3000${ticket.requester.avatar_url}` }} style={styles.requesterAvatar} />
             ) : (
-              <View style={[styles.requesterAvatarPlaceholder, { backgroundColor: colors.accentIce }]}><Text style={[styles.requesterAvatarText, { color: colors.background }]}>{ticket.requester.name.charAt(0).toUpperCase()}</Text></View>
+              <View style={[styles.requesterAvatarPlaceholder, { backgroundColor: colors.accentIce }]}>
+                <Text style={[styles.requesterAvatarText, { color: colors.background }]}>
+                  {ticket.requester?.name ? ticket.requester.name.charAt(0).toUpperCase() : '?'}
+                </Text>
+              </View>
             )}
             <View style={{ marginLeft: 10, flex: 1 }}>
-              <Text style={[styles.requesterName, { color: colors.textPrimary }]}>{ticket.requester.name}</Text>
-              
-              {/* SETOR AQUI */}
-              {ticket.requester.sector_name && (
-                <Text style={[styles.requesterId, { color: colors.accentSilver, fontWeight: 'bold' }]}>
-                  Setor: {ticket.requester.sector_name}
-                </Text>
+              <Text style={[styles.requesterName, { color: colors.textPrimary }]}>
+                {ticket.requester?.name || 'Solicitante Desconhecido'}
+              </Text>
+              {ticket.requester?.sector_name && (
+                <Text style={[styles.requesterId, { color: colors.accentSilver, fontWeight: 'bold' }]}>Setor: {ticket.requester.sector_name}</Text>
               )}
-              
-              {ticket.requester.identification && <Text style={[styles.requesterId, { color: colors.textSecondary }]}>{ticket.requester.identification}</Text>}
+              {ticket.requester?.identification && <Text style={[styles.requesterId, { color: colors.textSecondary }]}>{ticket.requester.identification}</Text>}
             </View>
           </View>
 
@@ -111,16 +115,19 @@ export default function TicketDetails({ route }: any) {
 
           {ticket.solution && <View style={[styles.solutionBox, { backgroundColor: isDark ? 'rgba(152, 195, 121, 0.1)' : 'rgba(52, 199, 89, 0.1)' }]}><Text style={[styles.label, { color: colors.textPrimary }]}>Solução Aplicada:</Text><Text style={[styles.value, { color: colors.textPrimary }]}>{ticket.solution}</Text></View>}
 
+          {/* AÇÕES DO GESTOR */}
           {userRole === 'manager' && ticket.status === 'aberto' && technicians.length > 0 && (
             <View style={{ marginTop: 20, borderTopWidth: 1, borderColor: colors.border, paddingTop: 15 }}>
-              <Text style={[styles.label, { color: colors.textPrimary }]}>Atribuir a um Técnico:</Text>
-              <View style={[styles.pickerContainer, { backgroundColor: colors.surfaceElevated, borderColor: colors.border }]}>
-                <Picker selectedValue={selectedTech} onValueChange={(val) => setSelectedTech(val)} style={{ color: colors.textPrimary }} dropdownIconColor={colors.textPrimary}>
-                  {technicians.map(tech => <Picker.Item key={tech.id} label={tech.name} value={String(tech.id)} color={colors.textPrimary} />)}
-                </Picker>
-              </View>
-              {/* BOTAO ROXO CORRIGIDO */}
-              <TouchableOpacity style={[styles.button, { backgroundColor: colors.accentSilver }]} onPress={handleAssign}>
+              <Text style={[styles.label, { color: colors.textPrimary, marginBottom: 10 }]}>Atribuir a um Técnico:</Text>
+              
+              <CustomSelect 
+                options={techOptions}
+                selectedValue={selectedTech}
+                onValueChange={setSelectedTech}
+                placeholder="Selecione o técnico"
+              />
+              
+              <TouchableOpacity style={[styles.button, { backgroundColor: colors.accentSilver, marginTop: 15 }]} onPress={handleAssign}>
                 <Text style={[styles.buttonText, { color: colors.background }]}>Atribuir Chamado</Text>
               </TouchableOpacity>
             </View>
@@ -143,7 +150,7 @@ export default function TicketDetails({ route }: any) {
           )}
         </View>
 
-        <View style={[styles.card, { marginTop: 15, backgroundColor: colors.surface, borderColor: colors.border }]}>
+        <View style={[styles.card, { marginTop: 15, backgroundColor: colors.surface, borderColor: colors.border, marginBottom: 50 }]}>
           <Text style={[styles.title, { color: colors.textPrimary }]}>Histórico</Text>
           {ticket.ticket_events?.map((event: any) => (
             <View key={event.id} style={[styles.commentBox, { backgroundColor: colors.surfaceElevated, borderLeftColor: colors.accentSilver }]}>
@@ -163,27 +170,26 @@ export default function TicketDetails({ route }: any) {
 
 const styles = StyleSheet.create({
   container: { flex: 1, padding: 15 },
-  card: { padding: 20, borderRadius: 8, borderWidth: 1 },
+  card: { padding: 20, borderRadius: 16, borderWidth: 1 },
   requesterBox: { flexDirection: 'row', alignItems: 'center', marginBottom: 20, borderBottomWidth: 1, paddingBottom: 15 },
-  requesterAvatar: { width: 40, height: 40, borderRadius: 20 },
-  requesterAvatarPlaceholder: { width: 40, height: 40, borderRadius: 20, justifyContent: 'center', alignItems: 'center' },
+  requesterAvatar: { width: 45, height: 45, borderRadius: 22.5 },
+  requesterAvatarPlaceholder: { width: 45, height: 45, borderRadius: 22.5, justifyContent: 'center', alignItems: 'center' },
   requesterAvatarText: { fontWeight: 'bold', fontSize: 18 },
   requesterName: { fontSize: 16, fontWeight: 'bold' },
-  requesterId: { fontSize: 14 },
+  requesterId: { fontSize: 13, marginTop: 2 },
   title: { fontSize: 22, fontWeight: 'bold', marginBottom: 10 },
   desc: { fontSize: 16, marginBottom: 20, lineHeight: 24 },
   infoRow: { flexDirection: 'row', marginBottom: 10 },
   label: { fontSize: 16, fontWeight: 'bold', marginRight: 5 },
   value: { fontSize: 16 },
-  pickerContainer: { borderWidth: 1, borderRadius: 8, marginBottom: 10, marginTop: 5, overflow: 'hidden' },
-  button: { padding: 15, borderRadius: 8, alignItems: 'center', marginTop: 10 },
+  button: { padding: 16, borderRadius: 12, alignItems: 'center', marginTop: 10 },
   buttonText: { color: '#fff', fontSize: 16, fontWeight: 'bold' },
-  solutionBox: { padding: 15, borderRadius: 8, marginTop: 15 },
-  input: { borderWidth: 1, borderRadius: 8, padding: 10, fontSize: 16 },
-  commentBox: { padding: 10, borderRadius: 8, marginBottom: 10, borderLeftWidth: 3 },
-  commentAuthor: { fontWeight: 'bold', marginBottom: 3 },
+  solutionBox: { padding: 15, borderRadius: 12, marginTop: 15 },
+  input: { borderWidth: 1, borderRadius: 12, padding: 15, fontSize: 16 },
+  commentBox: { padding: 12, borderRadius: 12, marginBottom: 10, borderLeftWidth: 3 },
+  commentAuthor: { fontWeight: 'bold', marginBottom: 4 },
   commentText: { fontSize: 15 },
-  ticketImage: { width: '100%', height: 250, borderRadius: 8 },
+  ticketImage: { width: '100%', height: 250, borderRadius: 12 },
   modalBackground: { flex: 1, backgroundColor: 'rgba(0,0,0,0.95)', justifyContent: 'center', alignItems: 'center' },
   zoomedImage: { width: '100%', height: '80%' },
   closeModalBtn: { position: 'absolute', top: 50, right: 20, padding: 10, zIndex: 10 }

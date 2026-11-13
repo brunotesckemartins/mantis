@@ -1,12 +1,12 @@
 // mobile/src/screens/Profile.tsx
 import React, { useContext, useState, useEffect } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Image, TextInput, Alert, ScrollView } from 'react-native';
-import { Picker } from '@react-native-picker/picker';
 import { AuthContext } from '../contexts/AuthContext';
 import { ThemeContext } from '../contexts/ThemeContext';
 import * as ImagePicker from 'expo-image-picker';
 import api from '../api/client';
 import XmbBackground from '../components/XmbBackground';
+import CustomSelect from '../components/CustomSelect'; // <-- Importando o novo componente
 
 export default function Profile() {
   const { signOut } = useContext(AuthContext);
@@ -97,12 +97,15 @@ export default function Profile() {
     } catch (error: any) { Alert.alert('Erro', error.response?.data?.error || 'Erro ao alterar senha.'); }
   }
 
+  // Converte os setores para o formato do CustomSelect
+  const sectorOptions = sectors.map(s => ({ label: `${s.name} (${s.building})`, value: String(s.id) }));
+
   const roleNames: any = { requester: 'Solicitante', technician: 'Técnico', manager: 'Gestor' };
   if (!profileData) return <XmbBackground><Text style={{ textAlign: 'center', marginTop: 50, color: colors.textPrimary }}>Carregando...</Text></XmbBackground>;
 
   return (
     <XmbBackground>
-      <ScrollView style={styles.container}>
+      <ScrollView style={styles.container} contentContainerStyle={{ paddingBottom: 120 }}>
         <View style={styles.header}>
           <TouchableOpacity onPress={handlePickAvatar}>
             {profileData.avatar_url ? (
@@ -135,12 +138,17 @@ export default function Profile() {
           </TouchableOpacity>
 
           <Text style={[styles.label, { color: colors.textSecondary, marginBottom: 5 }]}>Meu Setor/Bloco:</Text>
-          <View style={[styles.pickerContainer, { backgroundColor: colors.backgroundDeep, borderColor: colors.border }]}>
-            <Picker selectedValue={selectedSector} onValueChange={setSelectedSector} style={{ color: colors.textPrimary }} dropdownIconColor={colors.textPrimary}>
-              <Picker.Item label="Selecione um setor..." value="" color={colors.textPrimary} />
-              {sectors.map(sec => <Picker.Item key={sec.id} label={`${sec.name} (${sec.building})`} value={String(sec.id)} color={colors.textPrimary} />)}
-            </Picker>
+          
+          {/* SUBSTITUÍDO AQUI PELO CUSTOM SELECT */}
+          <View style={{ marginBottom: 10 }}>
+            <CustomSelect 
+              options={sectorOptions}
+              selectedValue={selectedSector}
+              onValueChange={setSelectedSector}
+              placeholder="Selecione seu setor..."
+            />
           </View>
+
           <TouchableOpacity style={[styles.button, { backgroundColor: colors.accentIce }]} onPress={handleUpdateSector}>
             <Text style={[styles.buttonText, { color: colors.background }]}>Salvar Setor</Text>
           </TouchableOpacity>
@@ -170,11 +178,6 @@ export default function Profile() {
             <Text style={[styles.buttonText, { color: colors.background }]}>Alterar Senha</Text>
           </TouchableOpacity>
         </View>
-
-        <TouchableOpacity style={[styles.logoutButton, { backgroundColor: colors.statusDanger }]} onPress={signOut}>
-          <Text style={[styles.logoutText, { color: colors.background }]}>Sair da Conta</Text>
-        </TouchableOpacity>
-        <View style={{ height: 40 }} />
       </ScrollView>
     </XmbBackground>
   );
@@ -198,9 +201,6 @@ const styles = StyleSheet.create({
   statLabel: { fontSize: 12, marginTop: 5 },
   box: { padding: 15, marginHorizontal: 15, borderRadius: 10, borderWidth: 1 },
   input: { borderWidth: 1, borderRadius: 8, padding: 10, marginBottom: 10, fontSize: 16 },
-  pickerContainer: { borderWidth: 1, borderRadius: 8, marginBottom: 10, overflow: 'hidden' },
   button: { padding: 12, borderRadius: 8, alignItems: 'center' },
   buttonText: { fontWeight: 'bold', fontSize: 16 },
-  logoutButton: { marginHorizontal: 15, marginTop: 30, padding: 15, borderRadius: 8, alignItems: 'center' },
-  logoutText: { fontWeight: 'bold', fontSize: 16 }
 });

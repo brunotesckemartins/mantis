@@ -1,11 +1,11 @@
 // mobile/src/screens/NewTicket.tsx
 import React, { useState, useEffect, useContext } from 'react';
 import { View, Text, TextInput, TouchableOpacity, StyleSheet, Alert, ScrollView, Image } from 'react-native';
-import { Picker } from '@react-native-picker/picker';
 import * as ImagePicker from 'expo-image-picker';
 import api from '../api/client';
 import { ThemeContext } from '../contexts/ThemeContext';
 import XmbBackground from '../components/XmbBackground';
+import CustomSelect from '../components/CustomSelect';
 
 export default function NewTicket({ navigation }: any) {
   const { colors } = useContext(ThemeContext);
@@ -24,7 +24,6 @@ export default function NewTicket({ navigation }: any) {
     });
   }, []);
 
-  // --- LÓGICA DE FOTO E PERMISSÕES ---
   async function pickImage() {
     Alert.alert('Adicionar Foto', 'Escolha a origem da imagem:', [
       { text: 'Câmera', onPress: () => launchImagePicker('camera') },
@@ -38,40 +37,18 @@ export default function NewTicket({ navigation }: any) {
       let result;
       if (source === 'camera') {
         const { status } = await ImagePicker.requestCameraPermissionsAsync();
-        if (status !== 'granted') {
-          return Alert.alert('Permissão Negada', 'Precisamos de acesso à câmera para tirar a foto do problema.');
-        }
+        if (status !== 'granted') return Alert.alert('Permissão Negada', 'Precisamos de acesso à câmera.');
         result = await ImagePicker.launchCameraAsync({ allowsEditing: true, aspect: [4, 3], quality: 0.5 });
       } else {
         const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-        if (status !== 'granted') {
-          return Alert.alert('Permissão Negada', 'Precisamos de acesso à galeria para anexar a imagem.');
-        }
+        if (status !== 'granted') return Alert.alert('Permissão Negada', 'Precisamos de acesso à galeria.');
         result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ImagePicker.MediaTypeOptions.Images, allowsEditing: true, aspect: [4, 3], quality: 0.5 });
       }
 
       if (!result.canceled) {
-        const uri = result.assets[0].uri;
-        setImage(uri);
-        Alert.alert("Foto de Perfil", "Deseja salvar esta foto também como sua foto de perfil?", [
-          { text: "Não", style: "cancel" },
-          { text: "Sim", onPress: () => saveAsProfilePic(uri) }
-        ]);
+        setImage(result.assets[0].uri);
       }
-    } catch (error) {
-      Alert.alert('Erro', 'Ocorreu um erro ao acessar a câmera/galeria.');
-    }
-  }
-
-  async function saveAsProfilePic(uri: string) {
-    const formData = new FormData();
-    const response = await fetch(uri);
-    const blob = await response.blob();
-    formData.append('avatar', blob, `avatar.jpg`);
-    try {
-      await api.patch('/api/v1/profile/avatar', formData, { headers: { 'Content-Type': 'multipart/form-data' } });
-      Alert.alert('Sucesso', 'Sua foto de perfil foi atualizada!');
-    } catch (error) { console.error(error); }
+    } catch (error) { Alert.alert('Erro', 'Ocorreu um erro ao acessar a câmera/galeria.'); }
   }
 
   async function handleCreate() {
@@ -96,9 +73,17 @@ export default function NewTicket({ navigation }: any) {
     } catch (error) { Alert.alert('Erro', 'Não foi possível abrir o chamado.'); }
   }
 
+  const categoryOptions = categories.map(c => ({ label: c.name, value: String(c.id) }));
+  const priorityOptions = [
+    { label: 'Baixa', value: 'baixa' },
+    { label: 'Média', value: 'media' },
+    { label: 'Alta', value: 'alta' },
+    { label: 'Crítica', value: 'critica' }
+  ];
+
   return (
     <XmbBackground>
-      <ScrollView style={styles.container}>
+      <ScrollView style={styles.container} contentContainerStyle={{ paddingBottom: 50 }}>
         <Text style={[styles.label, { color: colors.textPrimary }]}>Título do Problema</Text>
         <TextInput 
           style={[styles.input, { backgroundColor: colors.surface, borderColor: colors.border, color: colors.textPrimary }]} 
@@ -119,21 +104,20 @@ export default function NewTicket({ navigation }: any) {
         />
         
         <Text style={[styles.label, { color: colors.textPrimary }]}>Categoria</Text>
-        <View style={[styles.pickerContainer, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-          <Picker selectedValue={categoryId} onValueChange={setCategoryId} style={{ color: colors.textPrimary }} dropdownIconColor={colors.textPrimary}>
-            {categories.map(cat => <Picker.Item key={cat.id} label={cat.name} value={String(cat.id)} color={colors.textPrimary} />)}
-          </Picker>
-        </View>
+        <CustomSelect 
+          options={categoryOptions}
+          selectedValue={categoryId}
+          onValueChange={setCategoryId}
+          placeholder="Selecione uma categoria"
+        />
 
         <Text style={[styles.label, { color: colors.textPrimary }]}>Prioridade</Text>
-        <View style={[styles.pickerContainer, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-          <Picker selectedValue={priority} onValueChange={setPriority} style={{ color: colors.textPrimary }} dropdownIconColor={colors.textPrimary}>
-            <Picker.Item label="Baixa" value="baixa" color={colors.textPrimary} />
-            <Picker.Item label="Média" value="media" color={colors.textPrimary} />
-            <Picker.Item label="Alta" value="alta" color={colors.textPrimary} />
-            <Picker.Item label="Crítica" value="critica" color={colors.textPrimary} />
-          </Picker>
-        </View>
+        <CustomSelect 
+          options={priorityOptions}
+          selectedValue={priority}
+          onValueChange={setPriority}
+          placeholder="Selecione a prioridade"
+        />
 
         <Text style={[styles.label, { color: colors.textPrimary }]}>Foto do Problema (Opcional)</Text>
         <TouchableOpacity style={[styles.photoButton, { backgroundColor: colors.surfaceElevated, borderColor: colors.border }]} onPress={pickImage}>
@@ -152,11 +136,10 @@ export default function NewTicket({ navigation }: any) {
 const styles = StyleSheet.create({
   container: { flex: 1, padding: 20 },
   label: { fontSize: 16, fontWeight: 'bold', marginBottom: 8, marginTop: 15 },
-  input: { borderWidth: 1, borderRadius: 8, padding: 12, fontSize: 16 },
+  input: { borderWidth: 1, borderRadius: 12, padding: 16, fontSize: 16, marginBottom: 10 },
   textArea: { height: 100, textAlignVertical: 'top' },
-  pickerContainer: { borderWidth: 1, borderRadius: 8, marginBottom: 5, overflow: 'hidden' },
-  photoButton: { padding: 15, borderRadius: 8, alignItems: 'center', borderWidth: 1, borderStyle: 'dashed' },
+  photoButton: { padding: 15, borderRadius: 12, alignItems: 'center', borderWidth: 1, borderStyle: 'dashed' },
   photoButtonText: { fontSize: 16, fontWeight: 'bold' },
-  button: { padding: 15, borderRadius: 8, alignItems: 'center', marginTop: 30, marginBottom: 50 },
+  button: { padding: 18, borderRadius: 12, alignItems: 'center', marginTop: 30, marginBottom: 50 },
   buttonText: { fontSize: 18, fontWeight: 'bold' },
 });

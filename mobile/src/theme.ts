@@ -14,11 +14,10 @@ export const DARK_COLORS = {
   accentIce: '#AFC2D5',
   glassTint: 'rgba(255, 255, 255, 0.05)',
   
-  // Status Semânticos (Minimalistas)
-  statusSuccess: '#98C379', // Verde acinzentado
-  statusWarning: '#E5C07B', // Âmbar suave
-  statusDanger: '#E06C75',  // Vermelho tijolo
-  statusInfo: '#61AFEF',    // Azul pálido
+  statusSuccess: '#98C379',
+  statusWarning: '#E5C07B', 
+  statusDanger: '#E06C75',  
+  statusInfo: '#61AFEF',    
   
   waveColors: ['rgba(201, 208, 216, 0.05)', 'transparent', 'rgba(175, 194, 213, 0.05)'],
   isDark: true
@@ -37,7 +36,6 @@ export const LIGHT_COLORS: typeof DARK_COLORS = {
   accentIce: '#8FA1B8',        
   glassTint: 'rgba(0, 0, 0, 0.03)',
 
-  // Status Semânticos (Versões mais escuras para fundo claro)
   statusSuccess: '#50A14F',
   statusWarning: '#C18401',
   statusDanger: '#E45649',
@@ -49,7 +47,8 @@ export const LIGHT_COLORS: typeof DARK_COLORS = {
 
 export type ThemeColors = typeof DARK_COLORS;
 
-export const SPACING = { xs: 4, sm: 8, md: 16, lg: 24, xl: 32 };
+// Aumentamos o raio das bordas para ficar estilo iOS (Liquid Glass)
+export const SPACING = { xs: 4, sm: 8, md: 16, lg: 24, xl: 32, borderRadius: 24 };
 
 export const getNavigationTheme = (isDark: boolean) => {
   const baseTheme = isDark ? DarkTheme : DefaultTheme;

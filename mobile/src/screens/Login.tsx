@@ -1,11 +1,11 @@
 // mobile/src/screens/Login.tsx
 import React, { useState, useContext } from 'react';
-import { View, Text, TextInput, TouchableOpacity, StyleSheet } from 'react-native';
+import { View, Text, TextInput, TouchableOpacity, StyleSheet, ScrollView } from 'react-native';
 import { AuthContext } from '../contexts/AuthContext';
 import { ThemeContext } from '../contexts/ThemeContext';
 import XmbBackground from '../components/XmbBackground';
 
-export default function Login() {
+export default function Login({ navigation }: any) {
   const { signIn } = useContext(AuthContext);
   const { colors } = useContext(ThemeContext);
   const [email, setEmail] = useState('');
@@ -27,7 +27,7 @@ export default function Login() {
 
   return (
     <XmbBackground>
-      <View style={styles.container}>
+      <ScrollView contentContainerStyle={styles.container}>
         <Text style={[styles.logo, { color: colors.textPrimary }]}>MANTIS</Text>
         <Text style={[styles.subtitle, { color: colors.textMuted }]}>CAMPUS SYSTEMS</Text>
         
@@ -56,14 +56,19 @@ export default function Login() {
           <TouchableOpacity style={[styles.button, { backgroundColor: colors.accentSilver }]} onPress={handleLogin}>
             <Text style={[styles.buttonText, { color: colors.background }]}>Entrar</Text>
           </TouchableOpacity>
+
+          {/* NOVO BOTÃO DE CADASTRO */}
+          <TouchableOpacity style={styles.registerButton} onPress={() => navigation.navigate('Register')}>
+            <Text style={[styles.registerText, { color: colors.accentSilver }]}>Não tem uma conta? Cadastre-se</Text>
+          </TouchableOpacity>
         </View>
-      </View>
+      </ScrollView>
     </XmbBackground>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, justifyContent: 'center', padding: 20 },
+  container: { flexGrow: 1, justifyContent: 'center', padding: 20 },
   logo: { fontSize: 32, fontWeight: '300', letterSpacing: 10, textAlign: 'center', marginBottom: 5 },
   subtitle: { fontSize: 12, letterSpacing: 4, textAlign: 'center', marginBottom: 50 },
   form: { width: '100%' },
@@ -71,4 +76,6 @@ const styles = StyleSheet.create({
   errorText: { marginBottom: 15, textAlign: 'center', fontWeight: 'bold' },
   button: { padding: 15, borderRadius: 8, alignItems: 'center', marginTop: 10 },
   buttonText: { fontSize: 18, fontWeight: 'bold' },
+  registerButton: { marginTop: 20, alignItems: 'center' },
+  registerText: { fontSize: 15, fontWeight: '500' }
 });
