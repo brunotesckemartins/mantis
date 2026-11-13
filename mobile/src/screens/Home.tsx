@@ -5,6 +5,7 @@ import { Feather } from '@expo/vector-icons';
 import { BlurView } from 'expo-blur';
 import { SPACING } from '../theme';
 import XmbBackground from '../components/XmbBackground';
+import GlassCard from '../components/GlassCard';
 import { AuthContext } from '../contexts/AuthContext';
 import { ThemeContext } from '../contexts/ThemeContext';
 import api from '../api/client';
@@ -12,20 +13,11 @@ import api from '../api/client';
 export default function Home({ navigation }: any) {
   const [tickets, setTickets] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  
   const { user } = useContext(AuthContext);
   const { isDark, colors } = useContext(ThemeContext);
 
   useEffect(() => {
-    api.get('/api/v1/tickets')
-      .then(res => {
-        setTickets(res.data);
-        setLoading(false);
-      })
-      .catch(err => {
-        console.log("Erro ao buscar chamados:", err);
-        setLoading(false);
-      });
+    api.get('/api/v1/tickets').then(res => { setTickets(res.data); setLoading(false); }).catch(() => setLoading(false));
   }, []);
 
   const myAssignedTickets = tickets.filter(t => t.technician?.id === user?.id && t.status === 'em_atendimento');
@@ -36,30 +28,36 @@ export default function Home({ navigation }: any) {
       <BlurView intensity={isDark ? 20 : 50} tint={isDark ? 'dark' : 'light'} style={styles.quickActionBlur}>
         <Feather name={icon} size={24} color={colors.accentSilver} />
       </BlurView>
-      <Text style={[styles.quickActionLabel, { color: colors.textSecondary }]} numberOfLines={1}>{label}</Text>
+      <Text style={[styles.quickActionLabel, { color: colors.textSecondary }]}>{label}</Text>
     </TouchableOpacity>
   );
 
+  // Função para pegar a cor do status (Padrão do app)
+  const getStatusColor = (status: string) => {
+    if (status === 'aberto') return colors.statusWarning;
+    if (status === 'em_atendimento') return colors.statusInfo;
+    if (status === 'resolvido') return colors.statusSuccess;
+    return colors.textPrimary;
+  };
+
   const TicketCard = ({ item }: { item: any }) => (
-    <TouchableOpacity 
-      style={styles.ticketWrapper}
-      onPress={() => navigation.navigate('TicketDetails', { ticket: item, userRole: user?.role })}
-    >
-      <BlurView intensity={isDark ? 20 : 50} tint={isDark ? 'dark' : 'light'} style={styles.ticketBlur}>
-        <View style={styles.ticketContent}>
-          <View style={{ flex: 1 }}>
-            <Text style={[styles.ticketTitle, { color: colors.textPrimary }]}>{item.title}</Text>
-            <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 4 }}>
-              <Text style={[styles.ticketStatus, { color: item.status === 'aberto' ? colors.statusWarning : colors.statusInfo }]}>
-                {item.status.toUpperCase()}
-              </Text>
-              <Text style={{ color: colors.textMuted, fontSize: 12, marginLeft: 10 }}>• {item.requester?.name}</Text>
+    <GlassCard onPress={() => navigation.navigate('TicketDetails', { ticket: item, userRole: user?.role })}>
+      <View style={styles.ticketContent}>
+        <View style={{ flex: 1 }}>
+          <Text style={[styles.ticketTitle, { color: colors.textPrimary }]}>{item.title}</Text>
+          
+          <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 8 }}>
+            {/* ETIQUETA COLORIDA PADRONIZADA */}
+            <View style={[styles.badge, { backgroundColor: `${getStatusColor(item.status)}20`, borderColor: `${getStatusColor(item.status)}40` }]}>
+              <Text style={[styles.badgeText, { color: getStatusColor(item.status) }]}>{item.status.toUpperCase()}</Text>
             </View>
+            <Text style={{ color: colors.textMuted, fontSize: 12, marginLeft: 10 }}>{item.requester?.name}</Text>
           </View>
-          <Feather name="chevron-right" size={20} color={colors.textMuted} />
+
         </View>
-      </BlurView>
-    </TouchableOpacity>
+        <Feather name="chevron-right" size={20} color={colors.textMuted} />
+      </View>
+    </GlassCard>
   );
 
   return (
@@ -78,19 +76,10 @@ export default function Home({ navigation }: any) {
         </View>
 
         <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
-          
-          {/* Correção do alinhamento dos ícones com space-between */}
           <View style={styles.quickActionsContainer}>
             <QuickAction icon="plus-circle" label="Novo Chamado" onPress={() => navigation.navigate('NewTicket')} />
-            
-            {user?.role === 'manager' && (
-              <QuickAction icon="activity" label="Painel" onPress={() => navigation.navigate('Dashboard')} />
-            )}
-            
-            {user?.role === 'manager' && (
-              <QuickAction icon="grid" label="Categorias" onPress={() => navigation.navigate('ManageCategories')} />
-            )}
-
+            {user?.role === 'manager' && <QuickAction icon="activity" label="Painel" onPress={() => navigation.navigate('Dashboard')} />}
+            {user?.role === 'manager' && <QuickAction icon="grid" label="Categorias" onPress={() => navigation.navigate('ManageCategories')} />}
             <QuickAction icon="book-open" label="Setores" onPress={() => navigation.navigate('Academic')} />
             <QuickAction icon="help-circle" label="Ajuda" onPress={() => navigation.navigate('Faq')} />
           </View>
@@ -101,23 +90,11 @@ export default function Home({ navigation }: any) {
             <>
               {user?.role === 'technician' && (
                 <>
-                  <View style={styles.sectionHeader}>
-                    <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>Minha Fila (Atribuídos)</Text>
-                  </View>
-                  {myAssignedTickets.length > 0 ? (
-                    myAssignedTickets.map(t => <TicketCard key={t.id} item={t} />)
-                  ) : (
-                    <Text style={{ color: colors.textMuted, marginLeft: 10, marginBottom: 20 }}>Você não tem chamados em atendimento no momento.</Text>
-                  )}
+                  <View style={styles.sectionHeader}><Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>Minha Fila (Atribuídos)</Text></View>
+                  {myAssignedTickets.length > 0 ? myAssignedTickets.map(t => <TicketCard key={t.id} item={t} />) : <Text style={{ color: colors.textMuted, marginLeft: 10, marginBottom: 20 }}>Nenhum chamado em atendimento.</Text>}
 
-                  <View style={styles.sectionHeader}>
-                    <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>Chamados Abertos</Text>
-                  </View>
-                  {openQueueTickets.length > 0 ? (
-                    openQueueTickets.map(t => <TicketCard key={t.id} item={t} />)
-                  ) : (
-                    <Text style={{ color: colors.textMuted, marginLeft: 10, marginBottom: 20 }}>Nenhum chamado aguardando na fila.</Text>
-                  )}
+                  <View style={styles.sectionHeader}><Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>Chamados Abertos</Text></View>
+                  {openQueueTickets.length > 0 ? openQueueTickets.map(t => <TicketCard key={t.id} item={t} />) : <Text style={{ color: colors.textMuted, marginLeft: 10, marginBottom: 20 }}>Nenhum chamado na fila.</Text>}
                 </>
               )}
 
@@ -130,12 +107,10 @@ export default function Home({ navigation }: any) {
                     </TouchableOpacity>
                   </View>
                   {tickets.slice(0, 5).map(t => <TicketCard key={t.id} item={t} />)}
-                  {tickets.length === 0 && <Text style={{ color: colors.textMuted, marginLeft: 10 }}>Nenhum chamado recente.</Text>}
                 </>
               )}
             </>
           )}
-          
           <View style={{ height: 120 }} />
         </ScrollView>
       </SafeAreaView>
@@ -149,22 +124,16 @@ const styles = StyleSheet.create({
   greeting: { fontSize: 16, marginBottom: 4 },
   userName: { fontSize: 28, fontWeight: 'bold', letterSpacing: -0.5 },
   avatarBlur: { width: 45, height: 45, borderRadius: 22.5, overflow: 'hidden', justifyContent: 'center', alignItems: 'center', borderWidth: 1, borderColor: 'rgba(255,255,255,0.1)' },
-  
   scrollContent: { paddingHorizontal: SPACING.lg },
-  
-  // Alterado para space-between e adicionado flexWrap
   quickActionsContainer: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', marginTop: SPACING.md, marginBottom: SPACING.xl },
   quickAction: { alignItems: 'center', minWidth: 70, marginBottom: 15 },
   quickActionBlur: { width: 60, height: 60, borderRadius: 20, overflow: 'hidden', justifyContent: 'center', alignItems: 'center', marginBottom: 8, borderWidth: 1, borderColor: 'rgba(255,255,255,0.1)' },
   quickActionLabel: { fontSize: 12, textAlign: 'center', fontWeight: '500' },
-
   sectionHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: SPACING.md, marginTop: SPACING.sm },
   sectionTitle: { fontSize: 20, fontWeight: 'bold' },
   seeAll: { fontSize: 14, fontWeight: '600' },
-  
-  ticketWrapper: { marginBottom: SPACING.md, borderRadius: SPACING.borderRadius, overflow: 'hidden', borderWidth: 1, borderColor: 'rgba(255,255,255,0.05)' },
-  ticketBlur: { width: '100%' },
-  ticketContent: { flexDirection: 'row', alignItems: 'center', padding: SPACING.lg },
-  ticketTitle: { fontSize: 16, fontWeight: '600', marginBottom: 4 },
-  ticketStatus: { fontSize: 12, fontWeight: 'bold' },
+  ticketContent: { flexDirection: 'row', alignItems: 'center', padding: 20 },
+  ticketTitle: { fontSize: 16, fontWeight: '600' },
+  badge: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12, borderWidth: 1 },
+  badgeText: { fontSize: 11, fontWeight: 'bold' },
 });

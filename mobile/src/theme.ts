@@ -2,7 +2,7 @@
 import { DefaultTheme, DarkTheme } from '@react-navigation/native';
 
 export const DARK_COLORS = {
-  background: '#08090C',
+  background: '#0A0C10',       // Um pouco mais claro que o preto puro
   backgroundDeep: '#050608',
   surface: 'rgba(26, 31, 38, 0.6)',
   surfaceElevated: '#1A1F26',
@@ -19,7 +19,8 @@ export const DARK_COLORS = {
   statusDanger: '#E06C75',  
   statusInfo: '#61AFEF',    
   
-  waveColors: ['rgba(201, 208, 216, 0.05)', 'transparent', 'rgba(175, 194, 213, 0.05)'],
+  // Ondas mais visíveis no modo escuro
+  waveColors: ['rgba(201, 208, 216, 0.15)', 'transparent', 'rgba(175, 194, 213, 0.15)'],
   isDark: true
 };
 
@@ -47,7 +48,6 @@ export const LIGHT_COLORS: typeof DARK_COLORS = {
 
 export type ThemeColors = typeof DARK_COLORS;
 
-// Aumentamos o raio das bordas para ficar estilo iOS (Liquid Glass)
 export const SPACING = { xs: 4, sm: 8, md: 16, lg: 24, xl: 32, borderRadius: 24 };
 
 export const getNavigationTheme = (isDark: boolean) => {

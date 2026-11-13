@@ -4,26 +4,22 @@ import { View, ActivityIndicator, TouchableOpacity } from 'react-native';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
-import { Feather } from '@expo/vector-icons'; // Importante para o ícone de voltar
+import { Feather } from '@expo/vector-icons';
 
 import { AuthProvider, AuthContext } from './src/contexts/AuthContext';
 import { ThemeProvider, ThemeContext } from './src/contexts/ThemeContext';
+import { ToastProvider } from './src/contexts/ToastContext'; // <-- Importe o Toast
 import { getNavigationTheme } from './src/theme';
 
 import CustomTabBar from './src/components/CustomTabBar';
 
-// Telas Públicas
 import Login from './src/screens/Login';
 import Register from './src/screens/Register';
-
-// Telas das Abas
 import Home from './src/screens/Home';
 import MyTickets from './src/screens/MyTickets';
 import Sectors from './src/screens/Sectors';
 import Profile from './src/screens/Profile';
 import Settings from './src/screens/Settings';
-
-// Telas de Stack (Push)
 import NewTicket from './src/screens/NewTicket';
 import TicketDetails from './src/screens/TicketDetails';
 import Dashboard from './src/screens/Dashboard';
@@ -40,23 +36,12 @@ function MainTabs() {
     <Tab.Navigator 
       tabBar={props => <CustomTabBar {...props} />}
       screenOptions={({ route, navigation }) => ({
-        // Esconde o header na Home (pois ela tem o próprio layout)
         headerShown: route.name !== 'Home',
-        headerStyle: { 
-          backgroundColor: colors.surfaceElevated, 
-          shadowColor: 'transparent', 
-          elevation: 0,
-          borderBottomWidth: 1,
-          borderBottomColor: colors.border
-        },
+        headerStyle: { backgroundColor: colors.surfaceElevated, shadowColor: 'transparent', elevation: 0, borderBottomWidth: 1, borderBottomColor: colors.border },
         headerTintColor: colors.textPrimary,
         headerTitleStyle: { fontWeight: 'bold' },
-        // Adiciona o botão de voltar customizado (estilo iOS) nas outras abas
         headerLeft: route.name !== 'Home' ? () => (
-          <TouchableOpacity 
-            onPress={() => navigation.navigate('Home')} 
-            style={{ marginLeft: 15, padding: 5 }}
-          >
+          <TouchableOpacity onPress={() => navigation.navigate('Home')} style={{ marginLeft: 15, padding: 5 }}>
             <Feather name="arrow-left" size={24} color={colors.textPrimary} />
           </TouchableOpacity>
         ) : undefined,
@@ -89,7 +74,6 @@ function AppRoutes() {
         {user ? (
           <>
             <Stack.Screen name="MainTabs" component={MainTabs} options={{ headerShown: false }} />
-            
             <Stack.Screen name="NewTicket" component={NewTicket} options={{ title: 'Criar Solicitação', presentation: 'modal' }} />
             <Stack.Screen name="TicketDetails" component={TicketDetails} options={{ title: 'Detalhes' }} />
             <Stack.Screen name="Dashboard" component={Dashboard} options={{ title: 'Painel de Métricas' }} />
@@ -110,9 +94,11 @@ function AppRoutes() {
 export default function App() {
   return (
     <ThemeProvider>
-      <AuthProvider>
-        <AppRoutes />
-      </AuthProvider>
+      <ToastProvider> {/* <-- Adicionado aqui */}
+        <AuthProvider>
+          <AppRoutes />
+        </AuthProvider>
+      </ToastProvider>
     </ThemeProvider>
   );
 }

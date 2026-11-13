@@ -3,6 +3,7 @@ import React, { createContext, useState, useEffect, ReactNode } from 'react';
 import { Platform } from 'react-native';
 import * as SecureStore from '../api/secureStore';
 import api from '../api/client';
+import { registerForPushNotificationsAsync } from '../utils/notifications'; // Import da notificação
 
 interface User {
   id: number;
@@ -32,6 +33,14 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
         if (storedToken && storedUser) {
           setUser(JSON.parse(storedUser));
+
+          // Tenta registrar o push token se estiver no celular
+          if (Platform.OS !== 'web') {
+            const pushToken = await registerForPushNotificationsAsync();
+            if (pushToken) {
+              api.patch('/api/v1/profile/push_token', { push_token: pushToken }).catch(console.error);
+            }
+          }
         }
       } catch (error) {
         console.error('Erro ao carregar dados do storage', error);
@@ -55,6 +64,14 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         await SecureStore.setItemAsync('mantis_token', token);
         await SecureStore.setItemAsync('mantis_user', JSON.stringify(loggedUser));
         setUser(loggedUser);
+
+        // Tenta registrar o push token após o login
+        if (Platform.OS !== 'web') {
+          const pushToken = await registerForPushNotificationsAsync();
+          if (pushToken) {
+            api.patch('/api/v1/profile/push_token', { push_token: pushToken }, { headers: { Authorization: `Bearer ${token}` } }).catch(console.error);
+          }
+        }
       } else {
         throw new Error("Token ou usuário não retornados pela API.");
       }
@@ -71,8 +88,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       await SecureStore.deleteItemAsync('mantis_user');
       setUser(null);
 
-      // Correção crucial para a versão Web: 
-      // Força o recarregamento da página para limpar o estado do React Navigation
       if (Platform.OS === 'web') {
         window.location.reload();
       }

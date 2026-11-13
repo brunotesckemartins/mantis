@@ -21,8 +21,9 @@ export default function XmbBackground({ children }: { children: React.ReactNode 
 
   return (
     <View style={[styles.container, { backgroundColor: colors.backgroundDeep }]}>
+      {/* Gradiente de fundo mais rico para o modo escuro */}
       <LinearGradient
-        colors={isDark ? ['#050608', '#08090C', '#10141a'] : ['#F8F9FA', '#E5E9F0', '#D0D6E0']}
+        colors={isDark ? ['#050608', '#0A0C10', '#141A23'] : ['#F8F9FA', '#E5E9F0', '#D0D6E0']}
         style={StyleSheet.absoluteFillObject}
       />
       

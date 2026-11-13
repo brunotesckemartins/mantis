@@ -28,6 +28,7 @@ Rails.application.routes.draw do
       patch 'profile/password', to: 'users#update_password'
       patch 'profile/identification', to: 'users#update_identification'
       patch 'profile/sector', to: 'users#update_sector'
+      patch 'profile/push_token', to: 'users#update_push_token'
       
       get 'dashboard', to: 'dashboards#index'
     end

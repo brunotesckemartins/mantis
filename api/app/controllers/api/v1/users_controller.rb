@@ -62,6 +62,14 @@ module Api
         end
       end
 
+            def update_push_token
+        if current_user.update(push_token: params[:push_token])
+          render json: { message: 'Push token salvo.' }, status: :ok
+        else
+          render json: { error: 'Erro ao salvar.' }, status: :unprocessable_entity
+        end
+      end
+
       private
 
       def calculate_stats
