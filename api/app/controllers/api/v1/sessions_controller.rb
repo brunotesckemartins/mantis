@@ -18,10 +18,7 @@ module Api
             }
           }, status: :ok
         else
-          render json: {
-            message: 'Credenciais inválidas.',
-            errors: resource.errors.full_messages
-          }, status: :unauthorized
+          render json: { message: 'Credenciais inválidas.' }, status: :unauthorized
         end
       end
 

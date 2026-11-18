@@ -20,7 +20,7 @@ module Api
           @tickets = @tickets.where("title ILIKE :search OR description ILIKE :search", search: search_term)
         end
 
-        @tickets = @tickets.order(created_at: :desc).includes(:category, :requester, :technician, ticket_events: :user, photo_attachment: :blob)
+        @tickets = @tickets.order(created_at: :desc).includes(:category, :requester, :technician, ticket_events: :user, photos_attachments: :blob)
 
         render json: @tickets.map { |t| ticket_json(t) }
       end
@@ -28,6 +28,9 @@ module Api
       def create
         @ticket = current_user.requested_tickets.new(ticket_params)
         if @ticket.save
+          @ticket.ticket_events.create!(user: current_user, content: "Chamado aberto.")
+          
+          PushNotificationService.send_notification(current_user, "Chamado Aberto", "Seu chamado #{@ticket.code} foi registrado.")
           render json: ticket_json(@ticket), status: :created
         else
           render json: { errors: @ticket.errors.full_messages }, status: :unprocessable_entity
@@ -38,6 +41,9 @@ module Api
         @ticket = Ticket.find(params[:id])
         if current_user.technician? && @ticket.status == 'aberto'
           @ticket.update(technician_id: current_user.id, status: 'em_atendimento')
+          @ticket.ticket_events.create!(user: current_user, content: "Técnico #{current_user.name} assumiu o chamado.")
+          
+          PushNotificationService.send_notification(@ticket.requester, "Chamado Assumido", "Seu chamado foi assumido pelo técnico #{current_user.name}.")
           render json: ticket_json(@ticket), status: :ok
         else
           render json: { error: 'Não é possível assumir este chamado.' }, status: :unprocessable_entity
@@ -47,7 +53,18 @@ module Api
       def update_status
         @ticket = Ticket.find(params[:id])
         if current_user.technician? && @ticket.technician_id == current_user.id
-          if @ticket.update(status: params[:status], solution: params[:solution])
+          old_status = @ticket.status
+          resolved_at_time = params[:status] == 'resolvido' ? Time.current : nil
+          
+          if @ticket.update(status: params[:status], solution: params[:solution], resolved_at: resolved_at_time)
+            @ticket.ticket_events.create!(user: current_user, content: "Status alterado de '#{old_status}' para '#{@ticket.status}'.")
+            
+            if @ticket.status == 'resolvido'
+              PushNotificationService.send_notification(@ticket.requester, "Chamado Resolvido", "Seu chamado foi resolvido. Confira a solução no app!")
+            end
+            # Dispara o e-mail (deliver_later roda em background)
+            TicketMailer.status_changed(@ticket, old_status, @ticket.status).deliver_later
+            
             render json: ticket_json(@ticket), status: :ok
           else
             render json: { errors: @ticket.errors.full_messages }, status: :unprocessable_entity
@@ -61,6 +78,10 @@ module Api
         @ticket = Ticket.find(params[:id])
         if current_user.manager?
           if @ticket.update(technician_id: params[:technician_id], status: 'em_atendimento')
+            tech = User.find(params[:technician_id])
+            @ticket.ticket_events.create!(user: current_user, content: "Gestor atribuiu o chamado ao técnico #{tech.name}.")
+            
+            PushNotificationService.send_notification(tech, "Novo Chamado Atribuído", "Você foi designado para o chamado #{@ticket.code}.")
             render json: ticket_json(@ticket), status: :ok
           else
             render json: { errors: @ticket.errors.full_messages }, status: :unprocessable_entity
@@ -70,10 +91,27 @@ module Api
         end
       end
 
+      def reopen
+        @ticket = Ticket.find(params[:id])
+        if current_user == @ticket.requester && @ticket.status == 'resolvido'
+          @ticket.update(status: 'aberto', solution: nil, resolved_at: nil, technician_id: nil)
+          @ticket.ticket_events.create!(user: current_user, content: "Chamado reaberto pelo solicitante.")
+          
+          render json: ticket_json(@ticket), status: :ok
+        else
+          render json: { error: 'Não é possível reabrir este chamado.' }, status: :unprocessable_entity
+        end
+      end
+
       def add_comment
         @ticket = Ticket.find(params[:id])
         @event = @ticket.ticket_events.new(user: current_user, content: params[:content])
         if @event.save
+          if current_user == @ticket.requester && @ticket.technician
+            PushNotificationService.send_notification(@ticket.technician, "Novo Comentário", "O solicitante comentou no chamado #{@ticket.code}.")
+          elsif current_user == @ticket.technician
+            PushNotificationService.send_notification(@ticket.requester, "Novo Comentário", "O técnico comentou no chamado #{@ticket.code}.")
+          end
           render json: @event, status: :created
         else
           render json: { errors: @event.errors.full_messages }, status: :unprocessable_entity
@@ -83,10 +121,9 @@ module Api
       private
 
       def ticket_params
-        params.require(:ticket).permit(:title, :description, :priority, :category_id, :photo)
+        params.require(:ticket).permit(:title, :description, :priority, :category_id, photos: [])
       end
 
-      # Função mágica que monta o JSON completo e padronizado do chamado
       def ticket_json(ticket)
         requester_data = ticket.requester.as_json(only: [:id, :name, :email, :role, :identification]).merge(
           sector_name: ticket.requester.sector&.name,
@@ -98,10 +135,15 @@ module Api
           technician_data[:avatar_url] = Rails.application.routes.url_helpers.rails_blob_path(ticket.technician.avatar, only_path: true)
         end
 
+        # Mapeia as URLs das fotos anexadas
+        photo_urls = ticket.photos.map do |photo|
+          Rails.application.routes.url_helpers.rails_blob_path(photo, only_path: true)
+        end
+
         ticket.as_json(include: [{ ticket_events: { include: :user } }, :category]).merge(
           requester: requester_data,
           technician: technician_data,
-          photo_url: ticket.photo.attached? ? Rails.application.routes.url_helpers.rails_blob_path(ticket.photo, only_path: true) : nil
+          photo_urls: photo_urls # <-- Array de URLs para o Frontend
         )
       end
     end

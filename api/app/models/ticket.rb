@@ -4,7 +4,15 @@ class Ticket < ApplicationRecord
   belongs_to :category
   
   has_many :ticket_events, dependent: :destroy
-  has_one_attached :photo # <-- Adicionado aqui
+  has_many_attached :photos # <-- Anexos Múltiplos
   
   validates :title, :description, :priority, presence: true
+  
+  before_create :generate_code
+
+  private
+
+  def generate_code
+    self.code = "MANTIS-#{Time.current.year}-#{SecureRandom.hex(2).upcase}"
+  end
 end

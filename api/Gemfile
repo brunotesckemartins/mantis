@@ -23,11 +23,15 @@ gem "solid_cable"
 gem "devise"
 gem "devise-jwt"
 
+gem 'letter_opener'
+
 gem "pundit"
 
 gem "rack-cors"
 # Reduces boot times through caching; required in config/boot.rb
 gem "bootsnap", require: false
+
+gem 'dotenv-rails'
 
 # Deploy this application anywhere as a Docker container [https://kamal-deploy.org]
 gem "kamal", require: false

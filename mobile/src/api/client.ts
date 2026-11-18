@@ -1,9 +1,12 @@
-// mobile/src/api/client.ts
 import axios from 'axios';
 import * as SecureStore from './secureStore';
 
 const api = axios.create({
-  baseURL: 'http://localhost:3000', 
+  baseURL: 'http://localhost:3000',
+  headers: {
+    'Accept': 'application/json',
+    'Content-Type': 'application/json',
+  }
 });
 
 api.interceptors.request.use(

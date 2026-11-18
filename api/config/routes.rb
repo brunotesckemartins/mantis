@@ -14,6 +14,7 @@ Rails.application.routes.draw do
           patch :assume
           patch :update_status
           patch :assign
+          patch :reopen # <-- NOVA ROTA
           post :add_comment
         end
       end

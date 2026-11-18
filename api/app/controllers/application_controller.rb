@@ -1,3 +1,4 @@
+# api/app/controllers/application_controller.rb
 class ApplicationController < ActionController::API
   # Desativa a verificação de CSRF para APIs
   skip_before_action :verify_authenticity_token, raise: false
