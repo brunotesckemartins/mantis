@@ -1,5 +1,13 @@
 # MANTIS — Campus Systems
 
+![Status](https://img.shields.io/badge/status-em_desenvolvimento-blue)
+![Licença](https://img.shields.io/badge/license-MIT-green)
+![Ruby](https://img.shields.io/badge/Ruby-3.x-red?logo=ruby)
+![Rails](https://img.shields.io/badge/Rails-8.x-CC0000?logo=ruby-on-rails&logoColor=white)
+![React Native](https://img.shields.io/badge/React_Native-Expo-61DAFB?logo=react&logoColor=black)
+![TypeScript](https://img.shields.io/badge/TypeScript-5.x-3178C6?logo=typescript&logoColor=white)
+![PostgreSQL](https://img.shields.io/badge/PostgreSQL-15+-336791?logo=postgresql&logoColor=white)
+
 O Mantis é um sistema mobile de abertura e acompanhamento de chamados de TI (Helpdesk), desenvolvido para otimizar o suporte técnico em ambientes universitários.
 
 O projeto resolve a limitação de sistemas legados baseados em desktop, oferecendo uma experiência mobile-first que permite a técnicos atuarem em campo e solicitantes abrirem chamados de qualquer local.
