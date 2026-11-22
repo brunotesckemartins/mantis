@@ -11,17 +11,24 @@ export default function Login({ navigation }: any) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [errorMsg, setErrorMsg] = useState('');
+  const [submitting, setSubmitting] = useState(false);
 
   async function handleLogin() {
     setErrorMsg('');
-    if (!email || !password) {
+    // remove espacos extras do teclado no celular
+    const cleanEmail = email.trim();
+    if (!cleanEmail || !password) {
       setErrorMsg('Preencha e-mail e senha.');
       return;
     }
+    if (submitting) return;
+    setSubmitting(true);
     try {
-      await signIn(email, password);
+      await signIn(cleanEmail, password);
     } catch (error: any) {
       setErrorMsg(error.message || 'Erro ao tentar logar.');
+    } finally {
+      setSubmitting(false);
     }
   }
 
@@ -53,8 +60,8 @@ export default function Login({ navigation }: any) {
 
           {errorMsg ? <Text style={[styles.errorText, { color: colors.statusDanger }]}>{errorMsg}</Text> : null}
 
-          <TouchableOpacity style={[styles.button, { backgroundColor: colors.accentSilver }]} onPress={handleLogin}>
-            <Text style={[styles.buttonText, { color: colors.background }]}>Entrar</Text>
+          <TouchableOpacity style={[styles.button, { backgroundColor: colors.accentSilver, opacity: submitting ? 0.6 : 1 }]} onPress={handleLogin} disabled={submitting}>
+            <Text style={[styles.buttonText, { color: colors.background }]}>{submitting ? 'Entrando...' : 'Entrar'}</Text>
           </TouchableOpacity>
 
           {/* NOVO BOTÃO DE CADASTRO */}

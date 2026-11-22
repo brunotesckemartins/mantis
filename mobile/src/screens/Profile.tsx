@@ -1,6 +1,6 @@
 // mobile/src/screens/Profile.tsx
 import React, { useContext, useState, useEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Image, TextInput, ScrollView } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Image, TextInput, ScrollView, Platform, ActivityIndicator } from 'react-native';
 import { AuthContext } from '../contexts/AuthContext';
 import { ThemeContext } from '../contexts/ThemeContext';
 import { useToast } from '../contexts/ToastContext'; // <-- Importando Toast
@@ -14,8 +14,11 @@ export default function Profile() {
   const { signOut } = useContext(AuthContext);
   const { colors } = useContext(ThemeContext);
   const { showToast } = useToast(); // <-- Hook do Toast
+  const baseUrl = api.defaults.baseURL || '';
   
   const [profileData, setProfileData] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(false);
   const [sectors, setSectors] = useState<any[]>([]);
   const [selectedSector, setSelectedSector] = useState<string>('');
   
@@ -30,23 +33,37 @@ export default function Profile() {
 
   async function fetchProfile() {
     try {
+      setError(false);
       const response = await api.get('/api/v1/profile');
       setProfileData(response.data);
       setIdentification(response.data.identification || '');
       if (response.data.sector_id) setSelectedSector(String(response.data.sector_id));
-    } catch (error) { console.error(error); }
+    } catch (err) {
+      console.error(err);
+      setError(true);
+    } finally {
+      setLoading(false);
+    }
   }
 
   async function handlePickAvatar() {
+    // pede permissao de galeria antes de abrir o seletor no celular
+    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (status !== 'granted') return showToast('Precisamos de permissão para acessar a galeria.', 'error');
     const result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ImagePicker.MediaTypeOptions.Images, allowsEditing: true, aspect: [1, 1], quality: 0.5 });
     if (!result.canceled) uploadAvatar(result.assets[0].uri);
   }
 
   async function uploadAvatar(uri: string) {
     const formData = new FormData();
-    const response = await fetch(uri);
-    const blob = await response.blob();
-    formData.append('avatar', blob, `avatar.jpg`);
+    // trata o anexo diferente na web e no mobile
+    if (Platform.OS === 'web') {
+      const response = await fetch(uri);
+      const blob = await response.blob();
+      formData.append('avatar', blob, 'avatar.jpg');
+    } else {
+      formData.append('avatar', { uri, name: 'avatar.jpg', type: 'image/jpeg' } as any);
+    }
     try {
       await api.patch('/api/v1/profile/avatar', formData, { headers: { 'Content-Type': 'multipart/form-data' } });
       showToast('Foto de perfil atualizada!', 'success'); // <-- Toast
@@ -83,7 +100,19 @@ export default function Profile() {
   const sectorOptions = sectors.map(s => ({ label: `${s.name} (${s.building})`, value: String(s.id) }));
   const roleNames: any = { requester: 'Solicitante', technician: 'Técnico', manager: 'Gestor' };
 
-  if (!profileData) return <XmbBackground><Text style={{ textAlign: 'center', marginTop: 50, color: colors.textPrimary }}>Carregando...</Text></XmbBackground>;
+  if (loading) return <XmbBackground><ActivityIndicator size="large" color={colors.accentSilver} style={{ marginTop: 60 }} /></XmbBackground>;
+
+  // evita ficar preso no carregando se a api falhar
+  if (error || !profileData) {
+    return (
+      <XmbBackground>
+        <View style={{ alignItems: 'center', marginTop: 60, padding: 20 }}>
+          <Text style={{ color: colors.statusDanger, marginBottom: 15 }}>Erro ao carregar perfil.</Text>
+          <GlassButton title="Tentar novamente" onPress={fetchProfile} variant="ghost" />
+        </View>
+      </XmbBackground>
+    );
+  }
 
   return (
     <XmbBackground>
@@ -91,10 +120,10 @@ export default function Profile() {
         <View style={styles.header}>
           <TouchableOpacity onPress={handlePickAvatar}>
             {profileData.avatar_url ? (
-              <Image source={{ uri: `http://localhost:3000${profileData.avatar_url}` }} style={styles.avatarImage} />
+              <Image source={{ uri: `${baseUrl}${profileData.avatar_url}` }} style={styles.avatarImage} />
             ) : (
               <View style={[styles.avatarPlaceholder, { backgroundColor: colors.accentSilver }]}>
-                <Text style={[styles.avatarText, { color: colors.background }]}>{profileData.name.charAt(0).toUpperCase()}</Text>
+                <Text style={[styles.avatarText, { color: colors.background }]}>{(profileData.name || '?').charAt(0).toUpperCase()}</Text>
               </View>
             )}
             <Text style={[styles.changePhotoText, { color: colors.accentSilver }]}>Alterar Foto</Text>
