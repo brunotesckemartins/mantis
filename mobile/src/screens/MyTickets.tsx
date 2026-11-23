@@ -5,6 +5,7 @@ import { useFocusEffect } from '@react-navigation/native';
 import api from '../api/client';
 import { AuthContext } from '../contexts/AuthContext';
 import { ThemeContext } from '../contexts/ThemeContext';
+import { useToast } from '../contexts/ToastContext';
 import XmbBackground from '../components/XmbBackground';
 import GlassCard from '../components/GlassCard';
 
@@ -16,15 +17,20 @@ export default function MyTickets({ navigation }: any) {
   const [refreshing, setRefreshing] = useState(false);
   const { user } = useContext(AuthContext);
   const { colors } = useContext(ThemeContext);
+  const { showToast } = useToast();
 
   const loadTickets = async () => {
     try {
       let url = '/api/v1/tickets?';
-      if (search) url += `search=${search}&`;
+      // encoda o termo de busca pra nao quebrar a query com caracteres especiais
+      if (search.trim()) url += `search=${encodeURIComponent(search.trim())}&`;
       if (filterStatus) url += `status=${filterStatus}&`;
       const response = await api.get(url);
       setTickets(response.data);
-    } catch (error) { console.error(error); } finally { setLoading(false); setRefreshing(false); }
+    } catch (error) {
+      console.error(error);
+      showToast('Erro ao carregar chamados.', 'error');
+    } finally { setLoading(false); setRefreshing(false); }
   };
 
   useFocusEffect(useCallback(() => { loadTickets(); }, [search, filterStatus]));
@@ -43,6 +49,7 @@ export default function MyTickets({ navigation }: any) {
     return (
       <GlassCard onPress={() => navigation.navigate('TicketDetails', { ticket: item, userRole: user?.role })}>
         <View style={{ padding: 20 }}>
+          {item.code && <Text style={{ color: colors.accentSilver, fontSize: 11, fontWeight: 'bold', marginBottom: 4 }}>{item.code}</Text>}
           <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 5 }}>
             <Text style={[styles.cardTitle, { color: colors.textPrimary }]}>{item.title}</Text>
             <Text style={[styles.cardDate, { color: colors.textMuted }]}>{new Date(item.created_at).toLocaleDateString()}</Text>
@@ -52,7 +59,7 @@ export default function MyTickets({ navigation }: any) {
           <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 10 }}>
             {/* ETIQUETA COLORIDA PADRONIZADA */}
             <View style={[styles.badge, { backgroundColor: `${getStatusColor(item.status)}20`, borderColor: `${getStatusColor(item.status)}40` }]}>
-              <Text style={[styles.badgeText, { color: getStatusColor(item.status) }]}>{item.status.toUpperCase()}</Text>
+              <Text style={[styles.badgeText, { color: getStatusColor(item.status) }]}>{item.status.replace('_', ' ').toUpperCase()}</Text>
             </View>
             <Text style={{ color: colors.textMuted, fontSize: 12 }}>{item.requester?.name}</Text>
           </View>

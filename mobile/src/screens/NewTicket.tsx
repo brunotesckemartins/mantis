@@ -1,14 +1,16 @@
 // mobile/src/screens/NewTicket.tsx
 import React, { useState, useEffect, useContext } from 'react';
-import { View, Text, TextInput, TouchableOpacity, StyleSheet, Alert, ScrollView, Image } from 'react-native';
+import { View, Text, TextInput, TouchableOpacity, StyleSheet, Alert, ScrollView, Image, Platform } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import api from '../api/client';
 import { ThemeContext } from '../contexts/ThemeContext';
+import { useToast } from '../contexts/ToastContext';
 import XmbBackground from '../components/XmbBackground';
 import CustomSelect from '../components/CustomSelect';
 
 export default function NewTicket({ navigation }: any) {
   const { colors } = useContext(ThemeContext);
+  const { showToast } = useToast();
   
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
@@ -16,15 +18,23 @@ export default function NewTicket({ navigation }: any) {
   const [categories, setCategories] = useState<any[]>([]);
   const [categoryId, setCategoryId] = useState<string>('');
   const [image, setImage] = useState<string | null>(null);
+  const [sending, setSending] = useState(false);
 
   useEffect(() => {
-    api.get('/api/v1/categories').then(res => {
-      setCategories(res.data);
-      if (res.data.length > 0) setCategoryId(String(res.data[0].id));
-    });
+    api.get('/api/v1/categories')
+      .then(res => {
+        setCategories(res.data);
+        if (res.data.length > 0) setCategoryId(String(res.data[0].id));
+      })
+      .catch(() => showToast('Erro ao carregar categorias.', 'error'));
   }, []);
 
   async function pickImage() {
+    // na web o alert com botoes nao funciona, entao abre a galeria direto
+    if (Platform.OS === 'web') {
+      launchImagePicker('gallery');
+      return;
+    }
     Alert.alert('Adicionar Foto', 'Escolha a origem da imagem:', [
       { text: 'Câmera', onPress: () => launchImagePicker('camera') },
       { text: 'Galeria', onPress: () => launchImagePicker('gallery') },
@@ -37,40 +47,54 @@ export default function NewTicket({ navigation }: any) {
       let result;
       if (source === 'camera') {
         const { status } = await ImagePicker.requestCameraPermissionsAsync();
-        if (status !== 'granted') return Alert.alert('Permissão Negada', 'Precisamos de acesso à câmera.');
+        if (status !== 'granted') return showToast('Precisamos de acesso à câmera.', 'error');
         result = await ImagePicker.launchCameraAsync({ allowsEditing: true, aspect: [4, 3], quality: 0.5 });
       } else {
         const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-        if (status !== 'granted') return Alert.alert('Permissão Negada', 'Precisamos de acesso à galeria.');
+        if (status !== 'granted') return showToast('Precisamos de acesso à galeria.', 'error');
         result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ImagePicker.MediaTypeOptions.Images, allowsEditing: true, aspect: [4, 3], quality: 0.5 });
       }
 
       if (!result.canceled) {
         setImage(result.assets[0].uri);
       }
-    } catch (error) { Alert.alert('Erro', 'Ocorreu um erro ao acessar a câmera/galeria.'); }
+    } catch (error) { showToast('Erro ao acessar a câmera/galeria.', 'error'); }
   }
 
   async function handleCreate() {
-    if (!title || !description || !categoryId) return Alert.alert('Atenção', 'Preencha todos os campos.');
+    // valida campos vazios ou so com espaco
+    if (!title.trim() || !description.trim() || !categoryId) {
+      return showToast('Preencha todos os campos.', 'error');
+    }
+    if (sending) return;
 
+    setSending(true);
     const formData = new FormData();
-    formData.append('ticket[title]', title);
-    formData.append('ticket[description]', description);
+    formData.append('ticket[title]', title.trim());
+    formData.append('ticket[description]', description.trim());
     formData.append('ticket[priority]', priority);
     formData.append('ticket[category_id]', categoryId);
 
+    // corrige o nome do campo para photos[] que o backend rails espera
     if (image) {
-      const response = await fetch(image);
-      const blob = await response.blob();
-      formData.append('ticket[photo]', blob, `photo.jpg`);
+      if (Platform.OS === 'web') {
+        const response = await fetch(image);
+        const blob = await response.blob();
+        formData.append('ticket[photos][]', blob, 'photo.jpg');
+      } else {
+        formData.append('ticket[photos][]', { uri: image, name: 'photo.jpg', type: 'image/jpeg' } as any);
+      }
     }
 
     try {
       await api.post('/api/v1/tickets', formData, { headers: { 'Content-Type': 'multipart/form-data' } });
-      Alert.alert('Sucesso', 'Chamado aberto com sucesso!');
+      showToast('Chamado aberto com sucesso!', 'success');
       navigation.goBack();
-    } catch (error) { Alert.alert('Erro', 'Não foi possível abrir o chamado.'); }
+    } catch (error) {
+      showToast('Não foi possível abrir o chamado.', 'error');
+    } finally {
+      setSending(false);
+    }
   }
 
   const categoryOptions = categories.map(c => ({ label: c.name, value: String(c.id) }));
@@ -125,8 +149,8 @@ export default function NewTicket({ navigation }: any) {
         </TouchableOpacity>
         {image && <Image source={{ uri: image }} style={{ width: '100%', height: 200, marginTop: 10, borderRadius: 8 }} />}
 
-        <TouchableOpacity style={[styles.button, { backgroundColor: colors.accentSilver }]} onPress={handleCreate}>
-          <Text style={[styles.buttonText, { color: colors.background }]}>Abrir Chamado</Text>
+        <TouchableOpacity style={[styles.button, { backgroundColor: colors.accentSilver, opacity: sending ? 0.6 : 1 }]} onPress={handleCreate} disabled={sending}>
+          <Text style={[styles.buttonText, { color: colors.background }]}>{sending ? 'Enviando...' : 'Abrir Chamado'}</Text>
         </TouchableOpacity>
       </ScrollView>
     </XmbBackground>

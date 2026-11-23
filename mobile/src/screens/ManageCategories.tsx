@@ -1,39 +1,45 @@
 // mobile/src/screens/ManageCategories.tsx
 import React, { useState, useEffect, useContext } from 'react';
-import { View, Text, TextInput, TouchableOpacity, FlatList, StyleSheet, Alert } from 'react-native';
+import { View, Text, TextInput, TouchableOpacity, FlatList, StyleSheet } from 'react-native';
 import api from '../api/client';
 import { ThemeContext } from '../contexts/ThemeContext';
+import { useToast } from '../contexts/ToastContext';
 import XmbBackground from '../components/XmbBackground';
 
 export default function ManageCategories() {
   const [categories, setCategories] = useState([]);
   const [newCategory, setNewCategory] = useState('');
   const { colors } = useContext(ThemeContext);
+  const { showToast } = useToast();
 
   async function loadCategories() {
     try {
       const response = await api.get('/api/v1/categories');
       setCategories(response.data);
-    } catch (error) { console.error(error); }
+    } catch (error) {
+      console.error(error);
+      showToast('Erro ao carregar categorias.', 'error');
+    }
   }
 
   useEffect(() => { loadCategories(); }, []);
 
   async function handleCreate() {
-    if (!newCategory) return;
+    // evita criar categoria vazia ou so com espacos
+    if (!newCategory.trim()) return showToast('Digite o nome da categoria.', 'error');
     try {
-      await api.post('/api/v1/categories', { category: { name: newCategory, active: true } });
+      await api.post('/api/v1/categories', { category: { name: newCategory.trim(), active: true } });
       setNewCategory('');
       loadCategories();
-      Alert.alert('Sucesso', 'Categoria criada!');
-    } catch (error) { Alert.alert('Erro', 'Não foi possível criar a categoria.'); }
+      showToast('Categoria criada!', 'success');
+    } catch (error) { showToast('Não foi possível criar a categoria.', 'error'); }
   }
 
   async function toggleActive(id: number, currentStatus: boolean) {
     try {
       await api.patch(`/api/v1/categories/${id}`, { category: { active: !currentStatus } });
       loadCategories();
-    } catch (error) { Alert.alert('Erro', 'Não foi possível alterar o status.'); }
+    } catch (error) { showToast('Não foi possível alterar o status.', 'error'); }
   }
 
   return (
@@ -57,6 +63,7 @@ export default function ManageCategories() {
         <FlatList
           data={categories}
           keyExtractor={(item: any) => String(item.id)}
+          ListEmptyComponent={<Text style={{ color: colors.textMuted, textAlign: 'center', marginTop: 20 }}>Nenhuma categoria cadastrada.</Text>}
           renderItem={({ item }: any) => (
             <View style={[styles.categoryItem, { backgroundColor: colors.surface, borderColor: colors.border }]}>
               <Text style={[styles.categoryText, { color: item.active ? colors.textPrimary : colors.textMuted }]}>

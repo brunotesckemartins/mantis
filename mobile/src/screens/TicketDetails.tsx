@@ -1,9 +1,10 @@
 // mobile/src/screens/TicketDetails.tsx
 import React, { useState, useEffect, useContext } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, Alert, ScrollView, TextInput, Image, Modal } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, ScrollView, TextInput, Image, Modal } from 'react-native';
 import api from '../api/client';
 import { AuthContext } from '../contexts/AuthContext';
 import { ThemeContext } from '../contexts/ThemeContext';
+import { useToast } from '../contexts/ToastContext';
 import XmbBackground from '../components/XmbBackground';
 import CustomSelect from '../components/CustomSelect';
 
@@ -11,6 +12,8 @@ export default function TicketDetails({ route }: any) {
   const { ticket: initialTicket, userRole } = route.params;
   const { user } = useContext(AuthContext);
   const { colors, isDark } = useContext(ThemeContext);
+  const { showToast } = useToast();
+  const baseUrl = api.defaults.baseURL || '';
   
   const [ticket, setTicket] = useState(initialTicket);
   const [technicians, setTechnicians] = useState<any[]>([]);
@@ -18,53 +21,83 @@ export default function TicketDetails({ route }: any) {
   const [newComment, setNewComment] = useState('');
   const [solutionText, setSolutionText] = useState('');
   const [showImage, setShowImage] = useState(true);
-  const [isZoomed, setIsZoomed] = useState(false);
+  const [zoomedUri, setZoomedUri] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
+
+  // suporta o array photo_urls retornado pelo backend
+  const photos: string[] = Array.isArray(ticket.photo_urls)
+    ? ticket.photo_urls
+    : (ticket.photo_url ? [ticket.photo_url] : []);
 
   useEffect(() => {
     if (userRole === 'manager') {
-      api.get('/api/v1/users/technicians').then(res => {
-        setTechnicians(res.data);
-        if (res.data.length > 0) setSelectedTech(String(res.data[0].id));
-      });
+      api.get('/api/v1/users/technicians')
+        .then(res => {
+          setTechnicians(res.data);
+          if (res.data.length > 0) setSelectedTech(String(res.data[0].id));
+        })
+        .catch(() => showToast('Erro ao carregar técnicos.', 'error'));
     }
   }, [userRole]);
 
   async function handleAssign() {
+    if (!selectedTech || submitting) return;
+    setSubmitting(true);
     try {
       const response = await api.patch(`/api/v1/tickets/${ticket.id}/assign`, { technician_id: Number(selectedTech) });
-      setTicket(response.data); Alert.alert('Sucesso', 'Chamado atribuído!');
-    } catch (error) { Alert.alert('Erro', 'Falha ao atribuir.'); }
+      setTicket(response.data);
+      showToast('Chamado atribuído!', 'success');
+    } catch (error) { showToast('Falha ao atribuir.', 'error'); } finally { setSubmitting(false); }
   }
   async function handleAssume() {
+    if (submitting) return;
+    setSubmitting(true);
     try {
       const response = await api.patch(`/api/v1/tickets/${ticket.id}/assume`);
-      setTicket(response.data); Alert.alert('Sucesso', 'Chamado assumido!');
-    } catch (error) { Alert.alert('Erro', 'Falha ao assumir.'); }
+      setTicket(response.data);
+      showToast('Chamado assumido!', 'success');
+    } catch (error) { showToast('Falha ao assumir.', 'error'); } finally { setSubmitting(false); }
   }
   async function handleResolve() {
-    if (!solutionText) return Alert.alert('Atenção', 'Descreva a solução antes de resolver.');
+    if (!solutionText.trim()) return showToast('Descreva a solução antes de resolver.', 'error');
+    if (submitting) return;
+    setSubmitting(true);
     try {
-      const response = await api.patch(`/api/v1/tickets/${ticket.id}/update_status`, { status: 'resolvido', solution: solutionText });
-      setTicket(response.data); Alert.alert('Sucesso', 'Chamado resolvido!');
-    } catch (error) { Alert.alert('Erro', 'Falha ao resolver.'); }
+      const response = await api.patch(`/api/v1/tickets/${ticket.id}/update_status`, { status: 'resolvido', solution: solutionText.trim() });
+      setTicket(response.data);
+      setSolutionText('');
+      showToast('Chamado resolvido!', 'success');
+    } catch (error) { showToast('Falha ao resolver.', 'error'); } finally { setSubmitting(false); }
+  }
+  // permite ao solicitante reabrir o chamado caso o problema volte
+  async function handleReopen() {
+    if (submitting) return;
+    setSubmitting(true);
+    try {
+      const response = await api.patch(`/api/v1/tickets/${ticket.id}/reopen`);
+      setTicket(response.data);
+      showToast('Chamado reaberto!', 'success');
+    } catch (error) { showToast('Não foi possível reabrir o chamado.', 'error'); } finally { setSubmitting(false); }
   }
   async function handleAddComment() {
-    if (!newComment) return;
+    if (!newComment.trim() || submitting) return;
+    setSubmitting(true);
     try {
-      const response = await api.post(`/api/v1/tickets/${ticket.id}/add_comment`, { content: newComment });
+      const response = await api.post(`/api/v1/tickets/${ticket.id}/add_comment`, { content: newComment.trim() });
       const updatedEvents = [...(ticket.ticket_events || []), { ...response.data, user }];
-      setTicket({ ...ticket, ticket_events: updatedEvents }); setNewComment('');
-    } catch (error) { Alert.alert('Erro', 'Falha ao comentar.'); }
+      setTicket({ ...ticket, ticket_events: updatedEvents });
+      setNewComment('');
+    } catch (error) { showToast('Falha ao comentar.', 'error'); } finally { setSubmitting(false); }
   }
 
   const techOptions = technicians.map(t => ({ label: t.name, value: String(t.id) }));
 
   return (
     <XmbBackground>
-      <Modal visible={isZoomed} transparent animationType="fade">
+      <Modal visible={!!zoomedUri} transparent animationType="fade">
         <View style={styles.modalBackground}>
-          <TouchableOpacity style={styles.closeModalBtn} onPress={() => setIsZoomed(false)}><Text style={{ color: '#fff', fontSize: 18, fontWeight: 'bold' }}>Fechar</Text></TouchableOpacity>
-          <Image source={{ uri: `http://localhost:3000${ticket.photo_url}` }} style={styles.zoomedImage} resizeMode="contain" />
+          <TouchableOpacity style={styles.closeModalBtn} onPress={() => setZoomedUri(null)}><Text style={{ color: '#fff', fontSize: 18, fontWeight: 'bold' }}>Fechar</Text></TouchableOpacity>
+          {zoomedUri && <Image source={{ uri: zoomedUri }} style={styles.zoomedImage} resizeMode="contain" />}
         </View>
       </Modal>
 
@@ -74,7 +107,7 @@ export default function TicketDetails({ route }: any) {
           <View style={[styles.requesterBox, { borderColor: colors.border }]}>
             {/* PROTEÇÃO CONTRA DADOS VAZIOS AQUI (requester?) */}
             {ticket.requester?.avatar_url ? (
-              <Image source={{ uri: `http://localhost:3000${ticket.requester.avatar_url}` }} style={styles.requesterAvatar} />
+              <Image source={{ uri: `${baseUrl}${ticket.requester.avatar_url}` }} style={styles.requesterAvatar} />
             ) : (
               <View style={[styles.requesterAvatarPlaceholder, { backgroundColor: colors.accentIce }]}>
                 <Text style={[styles.requesterAvatarText, { color: colors.background }]}>
@@ -93,27 +126,35 @@ export default function TicketDetails({ route }: any) {
             </View>
           </View>
 
+          {ticket.code && <Text style={{ color: colors.accentSilver, fontSize: 12, fontWeight: 'bold', marginBottom: 4 }}>{ticket.code}</Text>}
           <Text style={[styles.title, { color: colors.textPrimary }]}>{ticket.title}</Text>
           <Text style={[styles.desc, { color: colors.textSecondary }]}>{ticket.description}</Text>
           
-          {ticket.photo_url && (
+          {photos.length > 0 && (
             <View style={{ marginBottom: 15 }}>
               <TouchableOpacity onPress={() => setShowImage(!showImage)} style={{ marginBottom: 10 }}>
-                <Text style={{ color: colors.accentSilver, fontWeight: 'bold' }}>{showImage ? 'Ocultar Foto' : 'Mostrar Foto'}</Text>
+                <Text style={{ color: colors.accentSilver, fontWeight: 'bold' }}>{showImage ? 'Ocultar Foto(s)' : 'Mostrar Foto(s)'}</Text>
               </TouchableOpacity>
-              {showImage && (
-                <TouchableOpacity onPress={() => setIsZoomed(true)}>
-                  <Image source={{ uri: `http://localhost:3000${ticket.photo_url}` }} style={[styles.ticketImage, { backgroundColor: colors.surfaceElevated }]} resizeMode="cover" />
+              {showImage && photos.map((url, idx) => (
+                <TouchableOpacity key={idx} onPress={() => setZoomedUri(`${baseUrl}${url}`)} style={{ marginBottom: 10 }}>
+                  <Image source={{ uri: `${baseUrl}${url}` }} style={[styles.ticketImage, { backgroundColor: colors.surfaceElevated }]} resizeMode="cover" />
                   <Text style={{ fontSize: 12, color: colors.textMuted, textAlign: 'center', marginTop: 5 }}>Clique na foto para expandir</Text>
                 </TouchableOpacity>
-              )}
+              ))}
             </View>
           )}
           
-          <View style={styles.infoRow}><Text style={[styles.label, { color: colors.textPrimary }]}>Status:</Text><Text style={[styles.value, { color: colors.accentSilver }]}>{ticket.status.toUpperCase()}</Text></View>
+          <View style={styles.infoRow}><Text style={[styles.label, { color: colors.textPrimary }]}>Status:</Text><Text style={[styles.value, { color: colors.accentSilver }]}>{ticket.status.replace('_', ' ').toUpperCase()}</Text></View>
           <View style={styles.infoRow}><Text style={[styles.label, { color: colors.textPrimary }]}>Prioridade:</Text><Text style={[styles.value, { color: colors.accentSilver }]}>{ticket.priority.toUpperCase()}</Text></View>
 
           {ticket.solution && <View style={[styles.solutionBox, { backgroundColor: isDark ? 'rgba(152, 195, 121, 0.1)' : 'rgba(52, 199, 89, 0.1)' }]}><Text style={[styles.label, { color: colors.textPrimary }]}>Solução Aplicada:</Text><Text style={[styles.value, { color: colors.textPrimary }]}>{ticket.solution}</Text></View>}
+
+          {/* botao pro solicitante reabrir chamado resolvido */}
+          {user?.id === ticket.requester?.id && ticket.status === 'resolvido' && (
+            <TouchableOpacity style={[styles.button, { backgroundColor: colors.statusWarning, marginTop: 15 }]} onPress={handleReopen} disabled={submitting}>
+              <Text style={[styles.buttonText, { color: colors.background }]}>Reabrir Chamado</Text>
+            </TouchableOpacity>
+          )}
 
           {/* AÇÕES DO GESTOR */}
           {userRole === 'manager' && ticket.status === 'aberto' && technicians.length > 0 && (

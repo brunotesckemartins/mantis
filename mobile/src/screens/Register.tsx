@@ -1,30 +1,45 @@
 // mobile/src/screens/Register.tsx
 import React, { useState, useContext } from 'react';
-import { View, Text, TextInput, TouchableOpacity, StyleSheet, Alert, ScrollView } from 'react-native';
+import { View, Text, TextInput, TouchableOpacity, StyleSheet, ScrollView } from 'react-native';
 import { Picker } from '@react-native-picker/picker';
 import { ThemeContext } from '../contexts/ThemeContext';
+import { useToast } from '../contexts/ToastContext';
 import api from '../api/client';
 import XmbBackground from '../components/XmbBackground';
 
 export default function Register({ navigation }: any) {
   const { colors } = useContext(ThemeContext);
+  const { showToast } = useToast();
   
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [role, setRole] = useState('requester');
+  const [submitting, setSubmitting] = useState(false);
 
   async function handleRegister() {
-    if (!name || !email || !password) {
-      return Alert.alert('Atenção', 'Preencha todos os campos.');
-    }
+    const cleanName = name.trim();
+    const cleanEmail = email.trim();
 
+    // validacoes basicas antes de bater na api
+    if (!cleanName || !cleanEmail || !password) {
+      return showToast('Preencha todos os campos.', 'error');
+    }
+    if (!cleanEmail.includes('@')) {
+      return showToast('Informe um e-mail válido.', 'error');
+    }
+    if (password.length < 6) {
+      return showToast('A senha precisa ter no mínimo 6 caracteres.', 'error');
+    }
+    if (submitting) return;
+
+    setSubmitting(true);
     try {
       // Rota correta para criação de usuário no Devise API
       await api.post('/auth', {
         user: {
-          name,
-          email,
+          name: cleanName,
+          email: cleanEmail,
           password,
           password_confirmation: password,
           role
@@ -36,13 +51,15 @@ export default function Register({ navigation }: any) {
         }
       });
 
-      Alert.alert('Sucesso', 'Conta criada com sucesso! Faça login para continuar.');
+      showToast('Conta criada com sucesso! Faça login.', 'success');
       navigation.goBack();
     } catch (error: any) {
       console.log("Erro completo:", error.response?.data);
       const errorData = error.response?.data?.errors || error.response?.data?.message;
-      const msg = Array.isArray(errorData) ? errorData.join('\n') : (errorData || 'Erro ao criar conta.');
-      Alert.alert('Erro ao cadastrar', msg);
+      const msg = Array.isArray(errorData) ? errorData.join(', ') : (errorData || 'Erro ao criar conta.');
+      showToast(msg, 'error');
+    } finally {
+      setSubmitting(false);
     }
   }
 
@@ -95,8 +112,8 @@ export default function Register({ navigation }: any) {
           </Picker>
         </View>
 
-        <TouchableOpacity style={[styles.button, { backgroundColor: colors.accentSilver }]} onPress={handleRegister}>
-          <Text style={[styles.buttonText, { color: colors.background }]}>Cadastrar</Text>
+        <TouchableOpacity style={[styles.button, { backgroundColor: colors.accentSilver, opacity: submitting ? 0.6 : 1 }]} onPress={handleRegister} disabled={submitting}>
+          <Text style={[styles.buttonText, { color: colors.background }]}>{submitting ? 'Cadastrando...' : 'Cadastrar'}</Text>
         </TouchableOpacity>
 
         <TouchableOpacity style={styles.backButton} onPress={() => navigation.goBack()}>

@@ -1,6 +1,6 @@
 // mobile/src/screens/Dashboard.tsx
 import React, { useState, useEffect, useContext } from 'react';
-import { View, Text, StyleSheet, ScrollView } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, ActivityIndicator, TouchableOpacity, RefreshControl } from 'react-native';
 import { BlurView } from 'expo-blur';
 import api from '../api/client';
 import { ThemeContext } from '../contexts/ThemeContext';
@@ -9,17 +9,52 @@ import { SPACING } from '../theme';
 
 export default function Dashboard() {
   const [data, setData] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [error, setError] = useState(false);
   const { colors, isDark } = useContext(ThemeContext);
 
+  // busca metricas do painel e evita tela travada se der erro na api
+  async function loadDashboard() {
+    try {
+      setError(false);
+      const response = await api.get('/api/v1/dashboard');
+      setData(response.data);
+    } catch (err) {
+      console.error('Erro ao buscar dashboard:', err);
+      setError(true);
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  }
+
   useEffect(() => {
-    api.get('/api/v1/dashboard')
-      .then(response => setData(response.data))
-      .catch(err => console.error('Erro ao buscar dashboard:', err));
+    loadDashboard();
   }, []);
 
-  if (!data) return <XmbBackground><Text style={{ textAlign: 'center', marginTop: 50, color: colors.textPrimary }}>Carregando métricas...</Text></XmbBackground>;
+  if (loading) {
+    return (
+      <XmbBackground>
+        <ActivityIndicator size="large" color={colors.accentSilver} style={{ marginTop: 60 }} />
+      </XmbBackground>
+    );
+  }
 
-  const renderCard = (title: string, value: number, color: string) => (
+  if (error || !data) {
+    return (
+      <XmbBackground>
+        <View style={{ alignItems: 'center', marginTop: 60, padding: 20 }}>
+          <Text style={{ color: colors.statusDanger, marginBottom: 15 }}>Erro ao carregar métricas.</Text>
+          <TouchableOpacity onPress={loadDashboard} style={{ padding: 12, borderRadius: 10, borderWidth: 1, borderColor: colors.border }}>
+            <Text style={{ color: colors.accentSilver, fontWeight: 'bold' }}>Tentar novamente</Text>
+          </TouchableOpacity>
+        </View>
+      </XmbBackground>
+    );
+  }
+
+  const renderCard = (title: string, value: string | number, color: string) => (
     <View style={styles.cardWrapper}>
       <BlurView intensity={isDark ? 20 : 50} tint={isDark ? 'dark' : 'light'} style={StyleSheet.absoluteFill} />
       <View style={[styles.card, { backgroundColor: colors.glassTint, borderColor: colors.border }]}>
@@ -31,7 +66,10 @@ export default function Dashboard() {
 
   return (
     <XmbBackground>
-      <ScrollView style={styles.container}>
+      <ScrollView
+        style={styles.container}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); loadDashboard(); }} tintColor={colors.accentSilver} />}
+      >
         <View style={styles.grid}>
           {renderCard('Total de Chamados', data.total, colors.textPrimary)}
           {renderCard('Abertos', data.abertos, colors.statusInfo)}
@@ -39,17 +77,28 @@ export default function Dashboard() {
           {renderCard('Resolvidos', data.resolvidos, colors.statusSuccess)}
         </View>
 
+        {/* tempo medio de atendimento retornado pelo backend */}
+        <View style={[styles.rankingWrapper, { borderColor: colors.border, marginBottom: SPACING.md }]}>
+          <BlurView intensity={isDark ? 20 : 50} tint={isDark ? 'dark' : 'light'} style={StyleSheet.absoluteFill} />
+          <View style={[styles.rankingBox, { backgroundColor: colors.glassTint }]}>
+            <Text style={[styles.cardLabel, { color: colors.textSecondary }]}>Tempo Médio de Atendimento (TMA)</Text>
+            <Text style={[styles.cardNumber, { color: colors.accentSilver, marginBottom: 0 }]}>{data.tempo_medio_horas ?? 0}h</Text>
+          </View>
+        </View>
+
         <View style={[styles.rankingWrapper, { borderColor: colors.border }]}>
           <BlurView intensity={isDark ? 20 : 50} tint={isDark ? 'dark' : 'light'} style={StyleSheet.absoluteFill} />
           <View style={[styles.rankingBox, { backgroundColor: colors.glassTint }]}>
             <Text style={[styles.rankingTitle, { color: colors.textPrimary }]}>🏆 Ranking de Técnicos</Text>
             
-            {data.ranking.map((tech: any, index: number) => (
+            {data.ranking?.length > 0 ? data.ranking.map((tech: any, index: number) => (
               <View key={index} style={[styles.rankingItem, { borderBottomColor: colors.border }]}>
                 <Text style={[styles.rankingName, { color: colors.textPrimary }]}>{index + 1}º {tech.name}</Text>
                 <Text style={[styles.rankingCount, { color: colors.statusSuccess }]}>{tech.resolved_count}</Text>
               </View>
-            ))}
+            )) : (
+              <Text style={{ color: colors.textMuted }}>Nenhum técnico com chamados resolvidos.</Text>
+            )}
           </View>
         </View>
       </ScrollView>

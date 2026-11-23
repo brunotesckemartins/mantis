@@ -1,6 +1,7 @@
 // mobile/src/screens/Home.tsx
-import React, { useState, useContext, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, SafeAreaView, ActivityIndicator } from 'react-native';
+import React, { useState, useContext, useCallback } from 'react';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, SafeAreaView, ActivityIndicator, RefreshControl } from 'react-native';
+import { useFocusEffect } from '@react-navigation/native';
 import { Feather } from '@expo/vector-icons';
 import { BlurView } from 'expo-blur';
 import { SPACING } from '../theme';
@@ -13,12 +14,29 @@ import api from '../api/client';
 export default function Home({ navigation }: any) {
   const [tickets, setTickets] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const { user } = useContext(AuthContext);
   const { isDark, colors } = useContext(ThemeContext);
 
-  useEffect(() => {
-    api.get('/api/v1/tickets').then(res => { setTickets(res.data); setLoading(false); }).catch(() => setLoading(false));
-  }, []);
+  // carrega chamados e atualiza sempre que voltar pra home
+  const loadTickets = async () => {
+    try {
+      const res = await api.get('/api/v1/tickets');
+      setTickets(res.data);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  };
+
+  useFocusEffect(useCallback(() => { loadTickets(); }, []));
+
+  const onRefresh = () => {
+    setRefreshing(true);
+    loadTickets();
+  };
 
   const myAssignedTickets = tickets.filter(t => t.technician?.id === user?.id && t.status === 'em_atendimento');
   const openQueueTickets = tickets.filter(t => t.status === 'aberto');
@@ -49,7 +67,7 @@ export default function Home({ navigation }: any) {
           <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 8 }}>
             {/* ETIQUETA COLORIDA PADRONIZADA */}
             <View style={[styles.badge, { backgroundColor: `${getStatusColor(item.status)}20`, borderColor: `${getStatusColor(item.status)}40` }]}>
-              <Text style={[styles.badgeText, { color: getStatusColor(item.status) }]}>{item.status.toUpperCase()}</Text>
+              <Text style={[styles.badgeText, { color: getStatusColor(item.status) }]}>{item.status.replace('_', ' ').toUpperCase()}</Text>
             </View>
             <Text style={{ color: colors.textMuted, fontSize: 12, marginLeft: 10 }}>{item.requester?.name}</Text>
           </View>
@@ -66,7 +84,8 @@ export default function Home({ navigation }: any) {
         <View style={styles.header}>
           <View>
             <Text style={[styles.greeting, { color: colors.textMuted }]}>Olá,</Text>
-            <Text style={[styles.userName, { color: colors.textPrimary }]}>{user?.name.split(' ')[0]}</Text>
+            {/* evita quebra caso o nome venha vazio */}
+            <Text style={[styles.userName, { color: colors.textPrimary }]}>{user?.name?.split(' ')[0] || 'Usuário'}</Text>
           </View>
           <TouchableOpacity onPress={() => navigation.navigate('Profile')}>
             <BlurView intensity={isDark ? 30 : 60} tint={isDark ? 'dark' : 'light'} style={styles.avatarBlur}>
@@ -75,7 +94,11 @@ export default function Home({ navigation }: any) {
           </TouchableOpacity>
         </View>
 
-        <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+        <ScrollView
+          contentContainerStyle={styles.scrollContent}
+          showsVerticalScrollIndicator={false}
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.accentSilver} />}
+        >
           <View style={styles.quickActionsContainer}>
             <QuickAction icon="plus-circle" label="Novo Chamado" onPress={() => navigation.navigate('NewTicket')} />
             {user?.role === 'manager' && <QuickAction icon="activity" label="Painel" onPress={() => navigation.navigate('Dashboard')} />}
@@ -106,7 +129,9 @@ export default function Home({ navigation }: any) {
                       <Text style={[styles.seeAll, { color: colors.accentSilver }]}>Ver todos</Text>
                     </TouchableOpacity>
                   </View>
-                  {tickets.slice(0, 5).map(t => <TicketCard key={t.id} item={t} />)}
+                  {tickets.length > 0 ? tickets.slice(0, 5).map(t => <TicketCard key={t.id} item={t} />) : (
+                    <Text style={{ color: colors.textMuted, marginLeft: 10 }}>Nenhum chamado recente.</Text>
+                  )}
                 </>
               )}
             </>
