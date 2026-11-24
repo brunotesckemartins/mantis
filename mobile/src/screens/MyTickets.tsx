@@ -1,70 +1,147 @@
 // mobile/src/screens/MyTickets.tsx
-import React, { useState, useCallback, useContext } from 'react';
+import React, { useState, useCallback, useContext, useEffect, useRef } from 'react';
 import { View, Text, FlatList, StyleSheet, TouchableOpacity, TextInput, ScrollView, RefreshControl, ActivityIndicator } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
+import { Feather } from '@expo/vector-icons';
 import api from '../api/client';
 import { AuthContext } from '../contexts/AuthContext';
 import { ThemeContext } from '../contexts/ThemeContext';
 import { useToast } from '../contexts/ToastContext';
 import XmbBackground from '../components/XmbBackground';
 import GlassCard from '../components/GlassCard';
+import StatusBadge from '../components/StatusBadge';
+import { getApiErrorMessage } from '../utils/apiError';
+import { STATUS_FILTERS, TicketStatus, formatDate, getPriorityColor, getPriorityLabel } from '../utils/ticketStatus';
 
 export default function MyTickets({ navigation }: any) {
-  const [tickets, setTickets] = useState([]);
+  const [tickets, setTickets] = useState<any[]>([]);
   const [search, setSearch] = useState('');
-  const [filterStatus, setFilterStatus] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
+  const [filterStatus, setFilterStatus] = useState<'' | TicketStatus>('');
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [error, setError] = useState(false);
   const { user } = useContext(AuthContext);
   const { colors } = useContext(ThemeContext);
   const { showToast } = useToast();
 
-  const loadTickets = async () => {
-    try {
-      let url = '/api/v1/tickets?';
-      // encoda o termo de busca pra nao quebrar a query com caracteres especiais
-      if (search.trim()) url += `search=${encodeURIComponent(search.trim())}&`;
-      if (filterStatus) url += `status=${filterStatus}&`;
-      const response = await api.get(url);
-      setTickets(response.data);
-    } catch (error) {
-      console.error(error);
-      showToast('Erro ao carregar chamados.', 'error');
-    } finally { setLoading(false); setRefreshing(false); }
-  };
+  // guarda qual foi a última requisição enviada, para ignorar respostas atrasadas
+  const requestId = useRef(0);
 
-  useFocusEffect(useCallback(() => { loadTickets(); }, [search, filterStatus]));
+  // espera o usuário parar de digitar antes de buscar no servidor
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedSearch(search.trim()), 350);
+    return () => clearTimeout(timer);
+  }, [search]);
+
+  const loadTickets = useCallback(async () => {
+    const current = ++requestId.current;
+    try {
+      const params: Record<string, string> = {};
+      if (debouncedSearch) params.search = debouncedSearch;
+      if (filterStatus) params.status = filterStatus;
+
+      const response = await api.get('/api/v1/tickets', { params });
+      if (current !== requestId.current) return;
+      setTickets(response.data);
+      setError(false);
+    } catch (err) {
+      if (current !== requestId.current) return;
+      setError(true);
+      showToast(getApiErrorMessage(err, 'Erro ao carregar chamados.'), 'error');
+    } finally {
+      if (current === requestId.current) {
+        setLoading(false);
+        setRefreshing(false);
+      }
+    }
+  }, [debouncedSearch, filterStatus]);
+
+  // recarrega ao voltar para a tela (ex.: depois de abrir um chamado) e quando muda busca/filtro
+  useFocusEffect(useCallback(() => { loadTickets(); }, [loadTickets]));
 
   const onRefresh = () => { setRefreshing(true); loadTickets(); };
 
-  // Função para pegar a cor do status (Padrão do app)
-  const getStatusColor = (status: string) => {
-    if (status === 'aberto') return colors.statusWarning;
-    if (status === 'em_atendimento') return colors.statusInfo;
-    if (status === 'resolvido') return colors.statusSuccess;
-    return colors.textPrimary;
-  };
+  const isRequester = user?.role === 'requester';
+  const hasFilters = !!debouncedSearch || !!filterStatus;
+
+  function clearFilters() {
+    setSearch('');
+    setDebouncedSearch('');
+    setFilterStatus('');
+  }
 
   function renderItem({ item }: any) {
+    // o solicitante já sabe quem abriu: mostra o técnico responsável
+    const personLabel = isRequester
+      ? (item.technician?.name ? `Técnico: ${item.technician.name}` : 'Aguardando técnico')
+      : item.requester?.name;
+
     return (
       <GlassCard onPress={() => navigation.navigate('TicketDetails', { ticket: item, userRole: user?.role })}>
         <View style={{ padding: 20 }}>
-          {item.code && <Text style={{ color: colors.accentSilver, fontSize: 11, fontWeight: 'bold', marginBottom: 4 }}>{item.code}</Text>}
-          <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 5 }}>
-            <Text style={[styles.cardTitle, { color: colors.textPrimary }]}>{item.title}</Text>
-            <Text style={[styles.cardDate, { color: colors.textMuted }]}>{new Date(item.created_at).toLocaleDateString()}</Text>
+          <View style={styles.topRow}>
+            <Text style={{ color: colors.accentSilver, fontSize: 11, fontWeight: 'bold' }}>{item.code || `#${item.id}`}</Text>
+            <Text style={[styles.cardDate, { color: colors.textMuted }]}>{formatDate(item.created_at)}</Text>
           </View>
+          <Text style={[styles.cardTitle, { color: colors.textPrimary }]} numberOfLines={1}>{item.title}</Text>
           <Text style={[styles.cardDesc, { color: colors.textSecondary }]} numberOfLines={2}>{item.description}</Text>
-          
-          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 10 }}>
-            {/* ETIQUETA COLORIDA PADRONIZADA */}
-            <View style={[styles.badge, { backgroundColor: `${getStatusColor(item.status)}20`, borderColor: `${getStatusColor(item.status)}40` }]}>
-              <Text style={[styles.badgeText, { color: getStatusColor(item.status) }]}>{item.status.replace('_', ' ').toUpperCase()}</Text>
+
+          <View style={styles.bottomRow}>
+            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+              <StatusBadge status={item.status} />
+              <View style={[styles.priorityDot, { backgroundColor: getPriorityColor(item.priority, colors) }]} />
+              <Text style={{ color: colors.textMuted, fontSize: 12 }}>{getPriorityLabel(item.priority)}</Text>
             </View>
-            <Text style={{ color: colors.textMuted, fontSize: 12 }}>{item.requester?.name}</Text>
+            {!!personLabel && <Text style={{ color: colors.textMuted, fontSize: 12, flexShrink: 1, marginLeft: 10 }} numberOfLines={1}>{personLabel}</Text>}
           </View>
         </View>
       </GlassCard>
+    );
+  }
+
+  function renderEmpty() {
+    if (error) {
+      return (
+        <View style={styles.emptyBox}>
+          <Feather name="wifi-off" size={32} color={colors.textMuted} />
+          <Text style={[styles.emptyTitle, { color: colors.textPrimary }]}>Não foi possível carregar</Text>
+          <Text style={[styles.empty, { color: colors.textMuted }]}>Verifique sua conexão e tente de novo.</Text>
+          <TouchableOpacity style={[styles.emptyButton, { borderColor: colors.accentSilver }]} onPress={() => { setLoading(true); loadTickets(); }}>
+            <Text style={{ color: colors.accentSilver, fontWeight: 'bold' }}>Tentar novamente</Text>
+          </TouchableOpacity>
+        </View>
+      );
+    }
+
+    if (hasFilters) {
+      return (
+        <View style={styles.emptyBox}>
+          <Feather name="search" size={32} color={colors.textMuted} />
+          <Text style={[styles.emptyTitle, { color: colors.textPrimary }]}>Nada encontrado</Text>
+          <Text style={[styles.empty, { color: colors.textMuted }]}>Nenhum chamado combina com a busca ou o filtro escolhido.</Text>
+          <TouchableOpacity style={[styles.emptyButton, { borderColor: colors.accentSilver }]} onPress={clearFilters}>
+            <Text style={{ color: colors.accentSilver, fontWeight: 'bold' }}>Limpar filtros</Text>
+          </TouchableOpacity>
+        </View>
+      );
+    }
+
+    return (
+      <View style={styles.emptyBox}>
+        <Feather name="inbox" size={32} color={colors.textMuted} />
+        <Text style={[styles.emptyTitle, { color: colors.textPrimary }]}>
+          {isRequester ? 'Você ainda não abriu chamados' : 'Nenhum chamado por aqui'}
+        </Text>
+        {isRequester && (
+          <>
+            <Text style={[styles.empty, { color: colors.textMuted }]}>Está com algum problema? Abra um chamado e acompanhe o andamento aqui.</Text>
+            <TouchableOpacity style={[styles.emptyButton, { borderColor: colors.accentSilver }]} onPress={() => navigation.navigate('NewTicket')}>
+              <Text style={{ color: colors.accentSilver, fontWeight: 'bold' }}>Abrir um chamado</Text>
+            </TouchableOpacity>
+          </>
+        )}
+      </View>
     );
   }
 
@@ -73,21 +150,29 @@ export default function MyTickets({ navigation }: any) {
       <View style={[styles.headerArea, { backgroundColor: colors.surfaceElevated }]}>
         <TextInput
           style={[styles.searchInput, { backgroundColor: colors.backgroundDeep, color: colors.textPrimary, borderColor: colors.border }]}
-          placeholder="Buscar chamados..." placeholderTextColor={colors.textMuted}
+          placeholder="Buscar por título ou descrição..." placeholderTextColor={colors.textMuted}
           value={search} onChangeText={setSearch}
+          returnKeyType="search"
+          autoCorrect={false}
+          accessibilityLabel="Buscar chamados"
         />
         <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginTop: 15 }}>
-          {['', 'aberto', 'em_atendimento', 'resolvido'].map((status) => (
-            <TouchableOpacity 
-              key={status} 
-              style={[styles.filterBtn, { backgroundColor: colors.surface, borderColor: colors.border }, filterStatus === status && { backgroundColor: colors.accentSilver }]} 
-              onPress={() => setFilterStatus(status)}
-            >
-              <Text style={[styles.filterText, { color: colors.textSecondary }, filterStatus === status && { color: colors.background, fontWeight: 'bold' }]}>
-                {status === '' ? 'Todos' : status.replace('_', ' ').toUpperCase()}
-              </Text>
-            </TouchableOpacity>
-          ))}
+          {STATUS_FILTERS.map((filter) => {
+            const selected = filterStatus === filter.value;
+            return (
+              <TouchableOpacity
+                key={filter.value || 'todos'}
+                style={[styles.filterBtn, { backgroundColor: colors.surface, borderColor: colors.border }, selected && { backgroundColor: colors.accentSilver }]}
+                onPress={() => setFilterStatus(filter.value)}
+                accessibilityRole="button"
+                accessibilityState={{ selected }}
+              >
+                <Text style={[styles.filterText, { color: colors.textSecondary }, selected && { color: colors.background, fontWeight: 'bold' }]}>
+                  {filter.label}
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
         </ScrollView>
       </View>
 
@@ -98,10 +183,30 @@ export default function MyTickets({ navigation }: any) {
           data={tickets}
           keyExtractor={(item: any) => String(item.id)}
           renderItem={renderItem}
-          contentContainerStyle={{ paddingBottom: 120, paddingHorizontal: 15, paddingTop: 10 }}
+          contentContainerStyle={{ paddingBottom: 120, paddingHorizontal: 15, paddingTop: 10, flexGrow: 1 }}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.accentSilver} />}
-          ListEmptyComponent={<Text style={[styles.empty, { color: colors.textMuted }]}>Nenhum chamado encontrado.</Text>}
+          ListHeaderComponent={
+            tickets.length > 0 ? (
+              <Text style={[styles.counter, { color: colors.textMuted }]}>
+                {tickets.length} {tickets.length === 1 ? 'chamado' : 'chamados'}
+              </Text>
+            ) : undefined
+          }
+          ListEmptyComponent={renderEmpty()}
+          keyboardShouldPersistTaps="handled"
         />
+      )}
+
+      {/* atalho para o solicitante abrir um novo chamado sem voltar para a home */}
+      {isRequester && (
+        <TouchableOpacity
+          style={[styles.fab, { backgroundColor: colors.accentSilver }]}
+          onPress={() => navigation.navigate('NewTicket')}
+          accessibilityRole="button"
+          accessibilityLabel="Abrir novo chamado"
+        >
+          <Feather name="plus" size={26} color={colors.background} />
+        </TouchableOpacity>
       )}
     </XmbBackground>
   );
@@ -112,10 +217,20 @@ const styles = StyleSheet.create({
   searchInput: { padding: 12, borderRadius: 12, fontSize: 16, borderWidth: 1 },
   filterBtn: { paddingVertical: 8, paddingHorizontal: 16, borderRadius: 20, marginRight: 8, borderWidth: 1 },
   filterText: { fontSize: 13 },
-  cardTitle: { fontSize: 18, fontWeight: 'bold', flex: 1 },
+  counter: { fontSize: 12, marginBottom: 10, marginLeft: 5 },
+  topRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 4 },
+  cardTitle: { fontSize: 18, fontWeight: 'bold', marginBottom: 5 },
   cardDate: { fontSize: 12 },
   cardDesc: { fontSize: 14, marginBottom: 10 },
-  badge: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12, borderWidth: 1 },
-  badgeText: { fontSize: 11, fontWeight: 'bold' },
-  empty: { textAlign: 'center', marginTop: 50 },
+  bottomRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 4 },
+  priorityDot: { width: 8, height: 8, borderRadius: 4, marginLeft: 12, marginRight: 5 },
+  emptyBox: { alignItems: 'center', paddingHorizontal: 30, marginTop: 60 },
+  emptyTitle: { fontSize: 18, fontWeight: 'bold', marginTop: 14, marginBottom: 6, textAlign: 'center' },
+  empty: { textAlign: 'center', fontSize: 14, lineHeight: 20 },
+  emptyButton: { marginTop: 18, paddingVertical: 10, paddingHorizontal: 20, borderRadius: 20, borderWidth: 1 },
+  fab: {
+    position: 'absolute', right: 24, bottom: 110, width: 56, height: 56, borderRadius: 28,
+    alignItems: 'center', justifyContent: 'center',
+    shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 8, elevation: 6,
+  },
 });

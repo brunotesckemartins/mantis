@@ -7,6 +7,7 @@ import { BlurView } from 'expo-blur';
 import { SPACING } from '../theme';
 import XmbBackground from '../components/XmbBackground';
 import GlassCard from '../components/GlassCard';
+import StatusBadge from '../components/StatusBadge';
 import { AuthContext } from '../contexts/AuthContext';
 import { ThemeContext } from '../contexts/ThemeContext';
 import api from '../api/client';
@@ -50,14 +51,6 @@ export default function Home({ navigation }: any) {
     </TouchableOpacity>
   );
 
-  // Função para pegar a cor do status (Padrão do app)
-  const getStatusColor = (status: string) => {
-    if (status === 'aberto') return colors.statusWarning;
-    if (status === 'em_atendimento') return colors.statusInfo;
-    if (status === 'resolvido') return colors.statusSuccess;
-    return colors.textPrimary;
-  };
-
   const TicketCard = ({ item }: { item: any }) => (
     <GlassCard onPress={() => navigation.navigate('TicketDetails', { ticket: item, userRole: user?.role })}>
       <View style={styles.ticketContent}>
@@ -65,10 +58,7 @@ export default function Home({ navigation }: any) {
           <Text style={[styles.ticketTitle, { color: colors.textPrimary }]}>{item.title}</Text>
           
           <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 8 }}>
-            {/* ETIQUETA COLORIDA PADRONIZADA */}
-            <View style={[styles.badge, { backgroundColor: `${getStatusColor(item.status)}20`, borderColor: `${getStatusColor(item.status)}40` }]}>
-              <Text style={[styles.badgeText, { color: getStatusColor(item.status) }]}>{item.status.replace('_', ' ').toUpperCase()}</Text>
-            </View>
+            <StatusBadge status={item.status} />
             <Text style={{ color: colors.textMuted, fontSize: 12, marginLeft: 10 }}>{item.requester?.name}</Text>
           </View>
 
@@ -159,6 +149,4 @@ const styles = StyleSheet.create({
   seeAll: { fontSize: 14, fontWeight: '600' },
   ticketContent: { flexDirection: 'row', alignItems: 'center', padding: 20 },
   ticketTitle: { fontSize: 16, fontWeight: '600' },
-  badge: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12, borderWidth: 1 },
-  badgeText: { fontSize: 11, fontWeight: 'bold' },
 });

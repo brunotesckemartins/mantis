@@ -1,12 +1,16 @@
 // mobile/src/screens/TicketDetails.tsx
-import React, { useState, useEffect, useContext } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, ScrollView, TextInput, Image, Modal } from 'react-native';
+import React, { useState, useEffect, useContext, useCallback } from 'react';
+import { View, Text, TouchableOpacity, StyleSheet, ScrollView, TextInput, Image, Modal, RefreshControl } from 'react-native';
+import { useFocusEffect } from '@react-navigation/native';
 import api from '../api/client';
 import { AuthContext } from '../contexts/AuthContext';
 import { ThemeContext } from '../contexts/ThemeContext';
 import { useToast } from '../contexts/ToastContext';
 import XmbBackground from '../components/XmbBackground';
 import CustomSelect from '../components/CustomSelect';
+import StatusBadge from '../components/StatusBadge';
+import StatusTimeline from '../components/StatusTimeline';
+import { formatDateTime, getPriorityColor, getPriorityLabel } from '../utils/ticketStatus';
 
 export default function TicketDetails({ route }: any) {
   const { ticket: initialTicket, userRole } = route.params;
@@ -23,6 +27,28 @@ export default function TicketDetails({ route }: any) {
   const [showImage, setShowImage] = useState(true);
   const [zoomedUri, setZoomedUri] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
+
+  // O backend ainda não tem endpoint de "mostrar um chamado", então busca a lista
+  // e pega o chamado desta tela. Assim o status acompanha o que o técnico fez.
+  const fetchTicket = useCallback(async () => {
+    try {
+      const response = await api.get('/api/v1/tickets');
+      const fresh = response.data.find((t: any) => t.id === initialTicket.id);
+      if (fresh) setTicket(fresh);
+    } catch (error) {
+      // mantém na tela os dados que já foram carregados
+    }
+  }, [initialTicket.id]);
+
+  // atualiza ao abrir a tela e ao voltar para ela
+  useFocusEffect(useCallback(() => { fetchTicket(); }, [fetchTicket]));
+
+  async function onRefresh() {
+    setRefreshing(true);
+    await fetchTicket();
+    setRefreshing(false);
+  }
 
   // suporta o array photo_urls retornado pelo backend
   const photos: string[] = Array.isArray(ticket.photo_urls)
@@ -101,7 +127,11 @@ export default function TicketDetails({ route }: any) {
         </View>
       </Modal>
 
-      <ScrollView style={styles.container}>
+      <ScrollView
+        style={styles.container}
+        keyboardShouldPersistTaps="handled"
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.accentSilver} />}
+      >
         <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}>
           
           <View style={[styles.requesterBox, { borderColor: colors.border }]}>
@@ -144,8 +174,19 @@ export default function TicketDetails({ route }: any) {
             </View>
           )}
           
-          <View style={styles.infoRow}><Text style={[styles.label, { color: colors.textPrimary }]}>Status:</Text><Text style={[styles.value, { color: colors.accentSilver }]}>{ticket.status.replace('_', ' ').toUpperCase()}</Text></View>
-          <View style={styles.infoRow}><Text style={[styles.label, { color: colors.textPrimary }]}>Prioridade:</Text><Text style={[styles.value, { color: colors.accentSilver }]}>{ticket.priority.toUpperCase()}</Text></View>
+          <View style={[styles.infoRow, { alignItems: 'center' }]}>
+            <Text style={[styles.label, { color: colors.textPrimary }]}>Status:</Text>
+            <StatusBadge status={ticket.status} />
+          </View>
+          <View style={[styles.infoRow, { alignItems: 'center' }]}>
+            <Text style={[styles.label, { color: colors.textPrimary }]}>Prioridade:</Text>
+            <Text style={[styles.value, { color: getPriorityColor(ticket.priority, colors), fontWeight: 'bold' }]}>{getPriorityLabel(ticket.priority)}</Text>
+          </View>
+
+          <View style={[styles.timelineBox, { borderColor: colors.border }]}>
+            <Text style={[styles.label, { color: colors.textPrimary, marginBottom: 14 }]}>Acompanhamento</Text>
+            <StatusTimeline ticket={ticket} />
+          </View>
 
           {ticket.solution && <View style={[styles.solutionBox, { backgroundColor: isDark ? 'rgba(152, 195, 121, 0.1)' : 'rgba(52, 199, 89, 0.1)' }]}><Text style={[styles.label, { color: colors.textPrimary }]}>Solução Aplicada:</Text><Text style={[styles.value, { color: colors.textPrimary }]}>{ticket.solution}</Text></View>}
 
@@ -195,7 +236,12 @@ export default function TicketDetails({ route }: any) {
           <Text style={[styles.title, { color: colors.textPrimary }]}>Histórico</Text>
           {ticket.ticket_events?.map((event: any) => (
             <View key={event.id} style={[styles.commentBox, { backgroundColor: colors.surfaceElevated, borderLeftColor: colors.accentSilver }]}>
-              <Text style={[styles.commentAuthor, { color: colors.textPrimary }]}>{event.user?.name || 'Usuário'}:</Text>
+              <View style={styles.commentHeader}>
+                <Text style={[styles.commentAuthor, { color: colors.textPrimary }]}>
+                  {event.user?.name || 'Usuário'}{event.user?.id === user?.id ? ' (você)' : ''}
+                </Text>
+                <Text style={{ color: colors.textMuted, fontSize: 11 }}>{formatDateTime(event.created_at)}</Text>
+              </View>
               <Text style={[styles.commentText, { color: colors.textSecondary }]}>{event.content}</Text>
             </View>
           ))}
@@ -228,7 +274,9 @@ const styles = StyleSheet.create({
   solutionBox: { padding: 15, borderRadius: 12, marginTop: 15 },
   input: { borderWidth: 1, borderRadius: 12, padding: 15, fontSize: 16 },
   commentBox: { padding: 12, borderRadius: 12, marginBottom: 10, borderLeftWidth: 3 },
-  commentAuthor: { fontWeight: 'bold', marginBottom: 4 },
+  timelineBox: { marginTop: 10, paddingTop: 15, borderTopWidth: 1 },
+  commentHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 },
+  commentAuthor: { fontWeight: 'bold', flexShrink: 1, marginRight: 8 },
   commentText: { fontSize: 15 },
   ticketImage: { width: '100%', height: 250, borderRadius: 12 },
   modalBackground: { flex: 1, backgroundColor: 'rgba(0,0,0,0.95)', justifyContent: 'center', alignItems: 'center' },
