@@ -1,14 +1,15 @@
 // mobile/src/screens/NewTicket.tsx
 import React, { useState, useEffect, useContext, useCallback, useMemo, useRef } from 'react';
-import { View, Text, TextInput, TouchableOpacity, StyleSheet, Alert, ScrollView, Image, Platform, KeyboardAvoidingView, ActivityIndicator } from 'react-native';
-import * as ImagePicker from 'expo-image-picker';
+import { View, Text, TextInput, TouchableOpacity, StyleSheet, ScrollView, Platform, KeyboardAvoidingView, ActivityIndicator } from 'react-native';
 import api from '../api/client';
 import { ThemeContext } from '../contexts/ThemeContext';
 import { useToast } from '../contexts/ToastContext';
 import XmbBackground from '../components/XmbBackground';
 import CustomSelect from '../components/CustomSelect';
+import PhotoPicker from '../components/PhotoPicker';
 import { getApiErrorMessage } from '../utils/apiError';
 import { confirmAction } from '../utils/confirm';
+import { PickedPhoto, appendPhotos } from '../utils/photos';
 import {
   DESCRIPTION_MAX,
   PRIORITY_OPTIONS,
@@ -32,8 +33,9 @@ export default function NewTicket({ navigation }: any) {
   const [priority, setPriority] = useState<PriorityValue>('media');
   const [categories, setCategories] = useState<Category[]>([]);
   const [categoryId, setCategoryId] = useState<string>('');
-  const [image, setImage] = useState<string | null>(null);
+  const [photos, setPhotos] = useState<PickedPhoto[]>([]);
   const [sending, setSending] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
 
   const [loadingCategories, setLoadingCategories] = useState(true);
   const [categoriesError, setCategoriesError] = useState(false);
@@ -70,7 +72,7 @@ export default function NewTicket({ navigation }: any) {
   const showCategoryError = submitAttempted && errors.categoryId;
 
   // se o usuário já digitou algo, pergunta antes de fechar a tela
-  const isDirty = title.trim().length > 0 || description.trim().length > 0 || !!image;
+  const isDirty = title.trim().length > 0 || description.trim().length > 0 || photos.length > 0;
 
   useEffect(() => {
     const unsubscribe = navigation.addListener('beforeRemove', (e: any) => {
@@ -90,38 +92,6 @@ export default function NewTicket({ navigation }: any) {
     return unsubscribe;
   }, [navigation, isDirty]);
 
-  async function pickImage() {
-    // na web o alert com botoes nao funciona, entao abre a galeria direto
-    if (Platform.OS === 'web') {
-      launchImagePicker('gallery');
-      return;
-    }
-    Alert.alert('Adicionar Foto', 'Escolha a origem da imagem:', [
-      { text: 'Câmera', onPress: () => launchImagePicker('camera') },
-      { text: 'Galeria', onPress: () => launchImagePicker('gallery') },
-      { text: 'Cancelar', style: 'cancel' }
-    ]);
-  }
-
-  async function launchImagePicker(source: 'camera' | 'gallery') {
-    try {
-      let result;
-      if (source === 'camera') {
-        const { status } = await ImagePicker.requestCameraPermissionsAsync();
-        if (status !== 'granted') return showToast('Precisamos de acesso à câmera.', 'error');
-        result = await ImagePicker.launchCameraAsync({ allowsEditing: true, aspect: [4, 3], quality: 0.5 });
-      } else {
-        const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-        if (status !== 'granted') return showToast('Precisamos de acesso à galeria.', 'error');
-        result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ImagePicker.MediaTypeOptions.Images, allowsEditing: true, aspect: [4, 3], quality: 0.5 });
-      }
-
-      if (!result.canceled) {
-        setImage(result.assets[0].uri);
-      }
-    } catch (error) { showToast('Erro ao acessar a câmera/galeria.', 'error'); }
-  }
-
   async function handleCreate() {
     if (sending) return;
 
@@ -131,6 +101,7 @@ export default function NewTicket({ navigation }: any) {
     }
 
     setSending(true);
+    setUploadProgress(0);
     try {
       const formData = new FormData();
       formData.append('ticket[title]', title.trim());
@@ -138,18 +109,15 @@ export default function NewTicket({ navigation }: any) {
       formData.append('ticket[priority]', priority);
       formData.append('ticket[category_id]', categoryId);
 
-      // corrige o nome do campo para photos[] que o backend rails espera
-      if (image) {
-        if (Platform.OS === 'web') {
-          const response = await fetch(image);
-          const blob = await response.blob();
-          formData.append('ticket[photos][]', blob, 'photo.jpg');
-        } else {
-          formData.append('ticket[photos][]', { uri: image, name: 'photo.jpg', type: 'image/jpeg' } as any);
-        }
-      }
+      // o backend rails espera o campo ticket[photos][] (uma entrada por foto)
+      await appendPhotos(formData, photos);
 
-      await api.post('/api/v1/tickets', formData, { headers: { 'Content-Type': 'multipart/form-data' } });
+      await api.post('/api/v1/tickets', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+        onUploadProgress: (event) => {
+          if (event.total) setUploadProgress(event.loaded / event.total);
+        },
+      });
       submittedRef.current = true;
       showToast('Chamado aberto com sucesso!', 'success');
       navigation.goBack();
@@ -267,11 +235,19 @@ export default function NewTicket({ navigation }: any) {
           </View>
           {selectedPriority && <Text style={[styles.hint, { color: colors.textMuted }]}>{selectedPriority.hint}</Text>}
 
-          <Text style={[styles.label, { color: colors.textPrimary }]}>Foto do Problema (Opcional)</Text>
-          <TouchableOpacity style={[styles.photoButton, { backgroundColor: colors.surfaceElevated, borderColor: colors.border }]} onPress={pickImage}>
-            <Text style={[styles.photoButtonText, { color: colors.accentSilver }]}>📷 Anexar Imagem</Text>
-          </TouchableOpacity>
-          {image && <Image source={{ uri: image }} style={{ width: '100%', height: 200, marginTop: 10, borderRadius: 8 }} />}
+          <Text style={[styles.label, { color: colors.textPrimary }]}>Fotos do Problema (Opcional)</Text>
+          <PhotoPicker photos={photos} onChange={setPhotos} disabled={sending} />
+
+          {sending && photos.length > 0 && (
+            <View style={styles.progressBox}>
+              <View style={[styles.progressTrack, { backgroundColor: colors.border }]}>
+                <View style={[styles.progressFill, { backgroundColor: colors.accentSilver, width: `${Math.round(uploadProgress * 100)}%` }]} />
+              </View>
+              <Text style={[styles.progressText, { color: colors.textMuted }]}>
+                {uploadProgress >= 1 ? 'Finalizando...' : `Enviando fotos... ${Math.round(uploadProgress * 100)}%`}
+              </Text>
+            </View>
+          )}
 
           <TouchableOpacity
             style={[styles.button, { backgroundColor: colors.accentSilver, opacity: sending ? 0.6 : 1 }]}
@@ -303,8 +279,10 @@ const styles = StyleSheet.create({
   chipsRow: { flexDirection: 'row', flexWrap: 'wrap' },
   chip: { paddingVertical: 10, paddingHorizontal: 16, borderRadius: 20, borderWidth: 1, marginRight: 8, marginBottom: 8 },
   hint: { fontSize: 13, marginTop: 2 },
-  photoButton: { padding: 15, borderRadius: 12, alignItems: 'center', borderWidth: 1, borderStyle: 'dashed' },
-  photoButtonText: { fontSize: 16, fontWeight: 'bold' },
+  progressBox: { marginTop: 16 },
+  progressTrack: { height: 6, borderRadius: 3, overflow: 'hidden' },
+  progressFill: { height: 6, borderRadius: 3 },
+  progressText: { fontSize: 12, marginTop: 6, textAlign: 'center' },
   button: { padding: 18, borderRadius: 12, alignItems: 'center', marginTop: 30, marginBottom: 50, minHeight: 58, justifyContent: 'center' },
   buttonText: { fontSize: 18, fontWeight: 'bold' },
 });

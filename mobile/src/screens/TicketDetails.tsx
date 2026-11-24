@@ -1,6 +1,6 @@
 // mobile/src/screens/TicketDetails.tsx
 import React, { useState, useEffect, useContext, useCallback } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, ScrollView, TextInput, Image, Modal, RefreshControl } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, ScrollView, TextInput, Image, RefreshControl } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import api from '../api/client';
 import { AuthContext } from '../contexts/AuthContext';
@@ -10,6 +10,7 @@ import XmbBackground from '../components/XmbBackground';
 import CustomSelect from '../components/CustomSelect';
 import StatusBadge from '../components/StatusBadge';
 import StatusTimeline from '../components/StatusTimeline';
+import PhotoGallery from '../components/PhotoGallery';
 import { formatDateTime, getPriorityColor, getPriorityLabel } from '../utils/ticketStatus';
 
 export default function TicketDetails({ route }: any) {
@@ -24,8 +25,6 @@ export default function TicketDetails({ route }: any) {
   const [selectedTech, setSelectedTech] = useState<string>('');
   const [newComment, setNewComment] = useState('');
   const [solutionText, setSolutionText] = useState('');
-  const [showImage, setShowImage] = useState(true);
-  const [zoomedUri, setZoomedUri] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
 
@@ -120,13 +119,6 @@ export default function TicketDetails({ route }: any) {
 
   return (
     <XmbBackground>
-      <Modal visible={!!zoomedUri} transparent animationType="fade">
-        <View style={styles.modalBackground}>
-          <TouchableOpacity style={styles.closeModalBtn} onPress={() => setZoomedUri(null)}><Text style={{ color: '#fff', fontSize: 18, fontWeight: 'bold' }}>Fechar</Text></TouchableOpacity>
-          {zoomedUri && <Image source={{ uri: zoomedUri }} style={styles.zoomedImage} resizeMode="contain" />}
-        </View>
-      </Modal>
-
       <ScrollView
         style={styles.container}
         keyboardShouldPersistTaps="handled"
@@ -160,20 +152,8 @@ export default function TicketDetails({ route }: any) {
           <Text style={[styles.title, { color: colors.textPrimary }]}>{ticket.title}</Text>
           <Text style={[styles.desc, { color: colors.textSecondary }]}>{ticket.description}</Text>
           
-          {photos.length > 0 && (
-            <View style={{ marginBottom: 15 }}>
-              <TouchableOpacity onPress={() => setShowImage(!showImage)} style={{ marginBottom: 10 }}>
-                <Text style={{ color: colors.accentSilver, fontWeight: 'bold' }}>{showImage ? 'Ocultar Foto(s)' : 'Mostrar Foto(s)'}</Text>
-              </TouchableOpacity>
-              {showImage && photos.map((url, idx) => (
-                <TouchableOpacity key={idx} onPress={() => setZoomedUri(`${baseUrl}${url}`)} style={{ marginBottom: 10 }}>
-                  <Image source={{ uri: `${baseUrl}${url}` }} style={[styles.ticketImage, { backgroundColor: colors.surfaceElevated }]} resizeMode="cover" />
-                  <Text style={{ fontSize: 12, color: colors.textMuted, textAlign: 'center', marginTop: 5 }}>Clique na foto para expandir</Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-          )}
-          
+          <PhotoGallery urls={photos.map(url => `${baseUrl}${url}`)} />
+
           <View style={[styles.infoRow, { alignItems: 'center' }]}>
             <Text style={[styles.label, { color: colors.textPrimary }]}>Status:</Text>
             <StatusBadge status={ticket.status} />
@@ -278,8 +258,4 @@ const styles = StyleSheet.create({
   commentHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 },
   commentAuthor: { fontWeight: 'bold', flexShrink: 1, marginRight: 8 },
   commentText: { fontSize: 15 },
-  ticketImage: { width: '100%', height: 250, borderRadius: 12 },
-  modalBackground: { flex: 1, backgroundColor: 'rgba(0,0,0,0.95)', justifyContent: 'center', alignItems: 'center' },
-  zoomedImage: { width: '100%', height: '80%' },
-  closeModalBtn: { position: 'absolute', top: 50, right: 20, padding: 10, zIndex: 10 }
 });
