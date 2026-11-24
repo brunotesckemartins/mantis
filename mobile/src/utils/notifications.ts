@@ -7,6 +7,8 @@ import { Platform } from 'react-native';
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
     shouldShowAlert: true,
+    shouldShowBanner: true,
+    shouldShowList: true,
     shouldPlaySound: true,
     shouldSetBadge: false,
   }),
@@ -25,21 +27,27 @@ export async function registerForPushNotificationsAsync() {
   }
 
   if (Device.isDevice) {
-    const { status: existingStatus } = await Notifications.getPermissionsAsync();
+    const { status: existingStatus } =
+      await Notifications.getPermissionsAsync();
+
     let finalStatus = existingStatus;
+
     if (existingStatus !== 'granted') {
       const { status } = await Notifications.requestPermissionsAsync();
       finalStatus = status;
     }
+
     if (finalStatus !== 'granted') {
       console.log('Falha ao obter permissão para notificações push!');
       return;
     }
-    
+
     // Pega o token do Expo
-    token = (await Notifications.getExpoPushTokenAsync({
-      projectId: "SEU_PROJECT_ID_AQUI" // Você pode pegar no app.json se configurou o EAS
-    })).data;
+    token = (
+      await Notifications.getExpoPushTokenAsync({
+        projectId: 'SEU_PROJECT_ID_AQUI',
+      })
+    ).data;
   } else {
     console.log('Notificações Push precisam de um dispositivo físico');
   }
