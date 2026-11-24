@@ -13,8 +13,17 @@ import StatusBadge from '../components/StatusBadge';
 import { getApiErrorMessage } from '../utils/apiError';
 import { STATUS_FILTERS, TicketStatus, formatDate, getPriorityColor, getPriorityLabel } from '../utils/ticketStatus';
 
+// recorte da lista para o técnico: fila de chamados livres ou os que ele está atendendo
+type TechScope = 'todos' | 'fila' | 'meus';
+const TECH_SCOPES: { value: TechScope; label: string; icon: keyof typeof Feather.glyphMap }[] = [
+  { value: 'todos', label: 'Todos', icon: 'list' },
+  { value: 'fila', label: 'Fila aberta', icon: 'inbox' },
+  { value: 'meus', label: 'Meus atendimentos', icon: 'user-check' },
+];
+
 export default function MyTickets({ navigation }: any) {
   const [tickets, setTickets] = useState<any[]>([]);
+  const [techScope, setTechScope] = useState<TechScope>('todos');
   const [search, setSearch] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
   const [filterStatus, setFilterStatus] = useState<'' | TicketStatus>('');
@@ -63,12 +72,24 @@ export default function MyTickets({ navigation }: any) {
   const onRefresh = () => { setRefreshing(true); loadTickets(); };
 
   const isRequester = user?.role === 'requester';
-  const hasFilters = !!debouncedSearch || !!filterStatus;
+  const isTechnician = user?.role === 'technician';
+  const hasFilters = !!debouncedSearch || !!filterStatus || (isTechnician && techScope !== 'todos');
+
+  const visibleTickets = !isTechnician || techScope === 'todos'
+    ? tickets
+    : tickets.filter(t => techScope === 'fila'
+      ? t.status === 'aberto' && !t.technician
+      : t.technician?.id === user?.id);
+
+  const scopeCount = (scope: TechScope) => scope === 'todos'
+    ? tickets.length
+    : tickets.filter(t => scope === 'fila' ? t.status === 'aberto' && !t.technician : t.technician?.id === user?.id).length;
 
   function clearFilters() {
     setSearch('');
     setDebouncedSearch('');
     setFilterStatus('');
+    setTechScope('todos');
   }
 
   function renderItem({ item }: any) {
@@ -156,6 +177,27 @@ export default function MyTickets({ navigation }: any) {
           autoCorrect={false}
           accessibilityLabel="Buscar chamados"
         />
+        {isTechnician && (
+          <View style={[styles.segment, { borderColor: colors.border, backgroundColor: colors.backgroundDeep }]}>
+            {TECH_SCOPES.map(scope => {
+              const selected = techScope === scope.value;
+              return (
+                <TouchableOpacity
+                  key={scope.value}
+                  style={[styles.segmentBtn, selected && { backgroundColor: colors.accentSilver }]}
+                  onPress={() => setTechScope(scope.value)}
+                  accessibilityRole="button"
+                  accessibilityState={{ selected }}
+                >
+                  <Feather name={scope.icon} size={13} color={selected ? colors.background : colors.textSecondary} />
+                  <Text style={[styles.segmentText, { color: selected ? colors.background : colors.textSecondary }, selected && { fontWeight: 'bold' }]} numberOfLines={1}>
+                    {scope.label} ({scopeCount(scope.value)})
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+        )}
         <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginTop: 15 }}>
           {STATUS_FILTERS.map((filter) => {
             const selected = filterStatus === filter.value;
@@ -180,15 +222,15 @@ export default function MyTickets({ navigation }: any) {
         <ActivityIndicator size="large" color={colors.accentSilver} style={{ marginTop: 50 }} />
       ) : (
         <FlatList
-          data={tickets}
+          data={visibleTickets}
           keyExtractor={(item: any) => String(item.id)}
           renderItem={renderItem}
           contentContainerStyle={{ paddingBottom: 120, paddingHorizontal: 15, paddingTop: 10, flexGrow: 1 }}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.accentSilver} />}
           ListHeaderComponent={
-            tickets.length > 0 ? (
+            visibleTickets.length > 0 ? (
               <Text style={[styles.counter, { color: colors.textMuted }]}>
-                {tickets.length} {tickets.length === 1 ? 'chamado' : 'chamados'}
+                {visibleTickets.length} {visibleTickets.length === 1 ? 'chamado' : 'chamados'}
               </Text>
             ) : undefined
           }
@@ -215,6 +257,9 @@ export default function MyTickets({ navigation }: any) {
 const styles = StyleSheet.create({
   headerArea: { padding: 15 },
   searchInput: { padding: 12, borderRadius: 12, fontSize: 16, borderWidth: 1 },
+  segment: { flexDirection: 'row', marginTop: 12, borderRadius: 12, borderWidth: 1, padding: 3 },
+  segmentBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: 8, paddingHorizontal: 4, borderRadius: 9 },
+  segmentText: { fontSize: 11, marginLeft: 4, flexShrink: 1 },
   filterBtn: { paddingVertical: 8, paddingHorizontal: 16, borderRadius: 20, marginRight: 8, borderWidth: 1 },
   filterText: { fontSize: 13 },
   counter: { fontSize: 12, marginBottom: 10, marginLeft: 5 },

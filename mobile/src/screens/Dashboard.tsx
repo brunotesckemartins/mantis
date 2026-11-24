@@ -6,9 +6,20 @@ import api from '../api/client';
 import { ThemeContext } from '../contexts/ThemeContext';
 import XmbBackground from '../components/XmbBackground';
 import { SPACING } from '../theme';
+import { getPriorityColor, getPriorityLabel, formatDate } from '../utils/ticketStatus';
 
-export default function Dashboard() {
+const PRIORITIES = ['critica', 'alta', 'media', 'baixa'];
+
+// horas desde a abertura, em texto curto (ex.: "3h", "2d")
+function ageLabel(iso: string) {
+  const hours = Math.max(0, (Date.now() - new Date(iso).getTime()) / 36e5);
+  if (hours < 24) return `${Math.floor(hours)}h`;
+  return `${Math.floor(hours / 24)}d`;
+}
+
+export default function Dashboard({ navigation }: any) {
   const [data, setData] = useState<any>(null);
+  const [tickets, setTickets] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState(false);
@@ -18,8 +29,13 @@ export default function Dashboard() {
   async function loadDashboard() {
     try {
       setError(false);
-      const response = await api.get('/api/v1/dashboard');
+      // métricas consolidadas vêm do backend; a lista serve para os recortes extras
+      const [response, ticketsRes] = await Promise.all([
+        api.get('/api/v1/dashboard'),
+        api.get('/api/v1/tickets').catch(() => null),
+      ]);
       setData(response.data);
+      if (ticketsRes) setTickets(ticketsRes.data);
     } catch (err) {
       console.error('Erro ao buscar dashboard:', err);
       setError(true);
@@ -64,6 +80,48 @@ export default function Dashboard() {
     </View>
   );
 
+  const renderSection = (title: string, children: React.ReactNode) => (
+    <View style={[styles.rankingWrapper, { borderColor: colors.border, marginBottom: SPACING.md }]}>
+      <BlurView intensity={isDark ? 20 : 50} tint={isDark ? 'dark' : 'light'} style={StyleSheet.absoluteFill} />
+      <View style={[styles.rankingBox, { backgroundColor: colors.glassTint }]}>
+        <Text style={[styles.rankingTitle, { color: colors.textPrimary }]}>{title}</Text>
+        {children}
+      </View>
+    </View>
+  );
+
+  const renderBar = (label: string, value: number, max: number, color: string, key: string) => (
+    <View key={key} style={{ marginBottom: SPACING.sm }}>
+      <View style={styles.barHeader}>
+        <Text style={{ color: colors.textSecondary, fontSize: 14 }} numberOfLines={1}>{label}</Text>
+        <Text style={{ color: colors.textPrimary, fontWeight: 'bold' }}>{value}</Text>
+      </View>
+      <View style={[styles.barTrack, { backgroundColor: colors.border }]}>
+        <View style={[styles.barFill, { backgroundColor: color, width: `${max > 0 ? (value / max) * 100 : 0}%` }]} />
+      </View>
+    </View>
+  );
+
+  // recortes calculados a partir da lista de chamados
+  const resolutionRate = data.total > 0 ? Math.round((data.resolvidos / data.total) * 100) : 0;
+  const pending = tickets.filter(t => t.status !== 'resolvido');
+  const pendingByPriority = PRIORITIES.map(p => ({ priority: p, count: pending.filter(t => t.priority === p).length }));
+  const maxPriority = Math.max(1, ...pendingByPriority.map(p => p.count));
+
+  const categoryCounts: Record<string, number> = {};
+  tickets.forEach(t => {
+    const name = t.category?.name || 'Sem categoria';
+    categoryCounts[name] = (categoryCounts[name] || 0) + 1;
+  });
+  const topCategories = Object.entries(categoryCounts).sort((a, b) => b[1] - a[1]).slice(0, 5);
+  const maxCategory = Math.max(1, ...topCategories.map(([, c]) => c));
+
+  // chamados sem técnico esperando há mais tempo
+  const oldestWaiting = tickets
+    .filter(t => t.status === 'aberto' && !t.technician)
+    .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime())
+    .slice(0, 3);
+
   return (
     <XmbBackground>
       <ScrollView
@@ -85,6 +143,42 @@ export default function Dashboard() {
             <Text style={[styles.cardNumber, { color: colors.accentSilver, marginBottom: 0 }]}>{data.tempo_medio_horas ?? 0}h</Text>
           </View>
         </View>
+
+        {renderSection('Taxa de Resolução', (
+          <>
+            <Text style={[styles.cardNumber, { color: colors.statusSuccess }]}>{resolutionRate}%</Text>
+            <View style={[styles.barTrack, { backgroundColor: colors.border }]}>
+              <View style={[styles.barFill, { backgroundColor: colors.statusSuccess, width: `${resolutionRate}%` }]} />
+            </View>
+            <Text style={{ color: colors.textMuted, fontSize: 12, marginTop: 6 }}>{data.resolvidos} de {data.total} chamados resolvidos</Text>
+          </>
+        ))}
+
+        {tickets.length > 0 && renderSection('Pendentes por Prioridade', (
+          pending.length > 0
+            ? pendingByPriority.map(p => renderBar(getPriorityLabel(p.priority), p.count, maxPriority, getPriorityColor(p.priority, colors), p.priority))
+            : <Text style={{ color: colors.textMuted }}>Nenhum chamado pendente. 🎉</Text>
+        ))}
+
+        {tickets.length > 0 && renderSection('Chamados por Categoria', (
+          topCategories.map(([name, count]) => renderBar(name, count, maxCategory, colors.accentSilver, name))
+        ))}
+
+        {oldestWaiting.length > 0 && renderSection('Aguardando Técnico há mais tempo', (
+          oldestWaiting.map(t => (
+            <TouchableOpacity
+              key={t.id}
+              style={[styles.rankingItem, { borderBottomColor: colors.border }]}
+              onPress={() => navigation?.navigate('TicketDetails', { ticket: t, userRole: 'manager' })}
+            >
+              <View style={{ flex: 1, marginRight: 10 }}>
+                <Text style={{ color: colors.textPrimary, fontSize: 15 }} numberOfLines={1}>{t.title}</Text>
+                <Text style={{ color: colors.textMuted, fontSize: 12 }}>{t.code || `#${t.id}`} · {formatDate(t.created_at)}</Text>
+              </View>
+              <Text style={{ color: colors.statusWarning, fontWeight: 'bold' }}>{ageLabel(t.created_at)}</Text>
+            </TouchableOpacity>
+          ))
+        ))}
 
         <View style={[styles.rankingWrapper, { borderColor: colors.border }]}>
           <BlurView intensity={isDark ? 20 : 50} tint={isDark ? 'dark' : 'light'} style={StyleSheet.absoluteFill} />
@@ -118,5 +212,8 @@ const styles = StyleSheet.create({
   rankingTitle: { fontSize: 18, fontWeight: 'bold', marginBottom: SPACING.md },
   rankingItem: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: SPACING.sm, borderBottomWidth: 1 },
   rankingName: { fontSize: 16, fontWeight: '400' },
-  rankingCount: { fontSize: 16, fontWeight: 'bold' }
+  rankingCount: { fontSize: 16, fontWeight: 'bold' },
+  barHeader: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 4 },
+  barTrack: { height: 8, borderRadius: 4, overflow: 'hidden' },
+  barFill: { height: 8, borderRadius: 4 }
 });
