@@ -5,13 +5,14 @@ import {
   Text,
   TextInput,
   TouchableOpacity,
+  Pressable,
   StyleSheet,
   ScrollView,
   KeyboardAvoidingView,
   Platform,
   ActivityIndicator,
+  Modal,
 } from 'react-native';
-import { Picker } from '@react-native-picker/picker';
 
 import { ThemeContext } from '../contexts/ThemeContext';
 import { useToast } from '../contexts/ToastContext';
@@ -28,6 +29,20 @@ export default function Register({ navigation }: any) {
   const [password, setPassword] = useState('');
   const [role, setRole] = useState('requester');
   const [submitting, setSubmitting] = useState(false);
+  const [rolePickerVisible, setRolePickerVisible] = useState(false);
+
+  const roles = [
+    {
+      label: 'Solicitante (Aluno/Professor)',
+      value: 'requester',
+    },
+    {
+      label: 'Técnico (Suporte)',
+      value: 'technician',
+    },
+  ];
+
+  const selectedRole = roles.find(item => item.value === role);
 
   async function handleRegister() {
     const cleanName = name.trim();
@@ -201,7 +216,9 @@ export default function Register({ navigation }: any) {
               Tipo de perfil
             </Text>
 
-            <View
+            <TouchableOpacity
+              activeOpacity={0.8}
+              onPress={() => setRolePickerVisible(true)}
               style={[
                 styles.pickerContainer,
                 {
@@ -210,25 +227,122 @@ export default function Register({ navigation }: any) {
                 },
               ]}
             >
-              <Picker
-                selectedValue={role}
-                onValueChange={value => setRole(value)}
-                style={{ color: colors.textPrimary }}
-                dropdownIconColor={colors.textPrimary}
+              <Text
+                style={[
+                  styles.pickerText,
+                  { color: colors.textPrimary },
+                ]}
               >
-                <Picker.Item
-                  label="Solicitante (Aluno/Professor)"
-                  value="requester"
-                  color={colors.textPrimary}
+                {selectedRole?.label}
+              </Text>
+
+              <Text
+                style={[
+                  styles.pickerArrow,
+                  { color: colors.textSecondary },
+                ]}
+              >
+                ▾
+              </Text>
+            </TouchableOpacity>
+
+            <Modal
+              visible={rolePickerVisible}
+              transparent
+              animationType="fade"
+              onRequestClose={() => setRolePickerVisible(false)}
+              statusBarTranslucent
+            >
+              <View style={styles.modalOverlay}>
+                <TouchableOpacity
+                  style={styles.modalBackdrop}
+                  activeOpacity={1}
+                  onPress={() => setRolePickerVisible(false)}
                 />
 
-                <Picker.Item
-                  label="Técnico (Suporte)"
-                  value="technician"
-                  color={colors.textPrimary}
-                />
-              </Picker>
-            </View>
+                <View
+                  style={[
+                    styles.modalContent,
+                    {
+                      backgroundColor: colors.surfaceElevated,
+                      borderColor: colors.border,
+                    },
+                  ]}
+                >
+                  <Text
+                    style={[
+                      styles.modalTitle,
+                      { color: colors.textPrimary },
+                    ]}
+                  >
+                    Escolha o tipo de perfil
+                  </Text>
+
+                  {roles.map(item => {
+                    const isSelected = role === item.value;
+
+                    return (
+                      <Pressable
+                        key={item.value}
+                        onPress={() => {
+                          setRole(item.value);
+                          setRolePickerVisible(false);
+                        }}
+                        style={({ pressed }) => [
+                          styles.roleOption,
+                          {
+                            backgroundColor: isSelected
+                              ? colors.glassTint
+                              : 'transparent',
+                            borderColor: isSelected
+                              ? colors.accentSilver
+                              : colors.border,
+                            opacity: pressed ? 0.7 : 1,
+                          },
+                        ]}
+                      >
+                        <Text
+                          style={[
+                            styles.roleOptionText,
+                            {
+                              color: colors.textPrimary,
+                              fontWeight: isSelected ? '700' : '400',
+                            },
+                          ]}
+                        >
+                          {item.label}
+                        </Text>
+
+                        {isSelected && (
+                          <Text
+                            style={[
+                              styles.checkmark,
+                              { color: colors.accentSilver },
+                            ]}
+                          >
+                            ✓
+                          </Text>
+                        )}
+                      </Pressable>
+                    );
+                  })}
+
+                  <TouchableOpacity
+                    onPress={() => setRolePickerVisible(false)}
+                    style={styles.modalCloseButton}
+                  >
+                    <Text
+                      style={[
+                        styles.modalCloseText,
+                        { color: colors.textSecondary },
+                      ]}
+                    >
+                      Cancelar
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            </Modal>
 
             <TouchableOpacity
               activeOpacity={0.8}
@@ -272,9 +386,19 @@ export default function Register({ navigation }: any) {
               onPress={() => navigation.goBack()}
               activeOpacity={0.7}
             >
-              <Text style={[styles.backText, { color: colors.textSecondary }]}>
+              <Text
+                style={[
+                  styles.backText,
+                  { color: colors.textSecondary },
+                ]}
+              >
                 Já tem uma conta?{' '}
-                <Text style={{ color: colors.accentSilver, fontWeight: 'bold' }}>
+                <Text
+                  style={{
+                    color: colors.accentSilver,
+                    fontWeight: 'bold',
+                  }}
+                >
                   Voltar para o Login
                 </Text>
               </Text>
@@ -348,10 +472,88 @@ const styles = StyleSheet.create({
   },
 
   pickerContainer: {
+    minHeight: 52,
     borderWidth: 1,
     borderRadius: 12,
     marginBottom: SPACING.md,
-    overflow: 'hidden',
+    paddingHorizontal: SPACING.md,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+
+  pickerText: {
+    fontSize: 16,
+    flex: 1,
+  },
+
+  pickerArrow: {
+    fontSize: 20,
+    marginLeft: SPACING.sm,
+  },
+
+  modalOverlay: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: SPACING.lg,
+  },
+
+  modalBackdrop: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(0, 0, 0, 0.65)',
+  },
+
+  modalContent: {
+    width: '100%',
+    maxWidth: 420,
+    borderRadius: SPACING.borderRadius,
+    borderWidth: 1,
+    padding: SPACING.lg,
+    elevation: 12,
+  },
+
+  modalTitle: {
+    fontSize: 17,
+    fontWeight: '600',
+    marginBottom: SPACING.lg,
+  },
+
+  roleOption: {
+    minHeight: 54,
+    borderWidth: 1,
+    borderRadius: 12,
+    paddingHorizontal: SPACING.md,
+    marginBottom: SPACING.sm,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+
+  roleOptionText: {
+    fontSize: 15,
+    flex: 1,
+  },
+
+  checkmark: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    marginLeft: SPACING.sm,
+  },
+
+  modalCloseButton: {
+    alignItems: 'center',
+    paddingVertical: SPACING.md,
+    marginTop: SPACING.xs,
+  },
+
+  modalCloseText: {
+    fontSize: 14,
+    fontWeight: '600',
   },
 
   buttonContainer: {
