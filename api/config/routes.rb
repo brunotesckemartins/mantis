@@ -12,9 +12,10 @@ Rails.application.routes.draw do
       resources :tickets, only: [:index, :create] do
         member do
           patch :assume
+          patch :unassume
           patch :update_status
           patch :assign
-          patch :reopen # <-- NOVA ROTA
+          patch :reopen 
           post :add_comment
         end
       end

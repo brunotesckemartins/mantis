@@ -1,3 +1,4 @@
+# api/app/controllers/api/v1/tickets_controller.rb
 module Api
   module V1
     class TicketsController < ApplicationController
@@ -50,6 +51,20 @@ module Api
         end
       end
 
+      # NOVA FUNÇÃO: Des-assumir chamado
+      def unassume
+        @ticket = Ticket.find(params[:id])
+        # Apenas o técnico que assumiu pode des-assumir
+        if current_user.technician? && @ticket.technician_id == current_user.id
+          @ticket.update(technician_id: nil, status: 'aberto')
+          @ticket.ticket_events.create!(user: current_user, content: "Técnico #{current_user.name} deixou o chamado e ele voltou para a fila.")
+          
+          render json: ticket_json(@ticket), status: :ok
+        else
+          render json: { error: 'Ação não permitida ou chamado não está com você.' }, status: :unauthorized
+        end
+      end
+
       def update_status
         @ticket = Ticket.find(params[:id])
         if current_user.technician? && @ticket.technician_id == current_user.id
@@ -62,7 +77,6 @@ module Api
             if @ticket.status == 'resolvido'
               PushNotificationService.send_notification(@ticket.requester, "Chamado Resolvido", "Seu chamado foi resolvido. Confira a solução no app!")
             end
-            # Dispara o e-mail (deliver_later roda em background)
             TicketMailer.status_changed(@ticket, old_status, @ticket.status).deliver_later
             
             render json: ticket_json(@ticket), status: :ok
@@ -121,7 +135,8 @@ module Api
       private
 
       def ticket_params
-        params.require(:ticket).permit(:title, :description, :priority, :category_id, photos: [])
+        # Adicionado o :location aqui
+        params.require(:ticket).permit(:title, :description, :priority, :category_id, :location, photos: [])
       end
 
       def ticket_json(ticket)
@@ -135,7 +150,6 @@ module Api
           technician_data[:avatar_url] = Rails.application.routes.url_helpers.rails_blob_path(ticket.technician.avatar, only_path: true)
         end
 
-        # Mapeia as URLs das fotos anexadas
         photo_urls = ticket.photos.map do |photo|
           Rails.application.routes.url_helpers.rails_blob_path(photo, only_path: true)
         end
@@ -143,7 +157,7 @@ module Api
         ticket.as_json(include: [{ ticket_events: { include: :user } }, :category]).merge(
           requester: requester_data,
           technician: technician_data,
-          photo_urls: photo_urls # <-- Array de URLs para o Frontend
+          photo_urls: photo_urls
         )
       end
     end
