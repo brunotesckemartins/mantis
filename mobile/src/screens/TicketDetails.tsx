@@ -1,4 +1,3 @@
-// mobile/src/screens/TicketDetails.tsx
 import React, { useState, useEffect, useContext, useCallback } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, ScrollView, TextInput, Image, RefreshControl } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
@@ -30,59 +29,46 @@ export default function TicketDetails({ route }: any) {
   const [submitting, setSubmitting] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
 
-  // O backend ainda não tem endpoint de "mostrar um chamado", então busca a lista
-  // e pega o chamado desta tela. Assim o status acompanha o que o técnico fez.
   const fetchTicket = useCallback(async () => {
     try {
       const response = await api.get('/api/v1/tickets');
       const fresh = response.data.find((t: any) => t.id === initialTicket.id);
       if (fresh) setTicket(fresh);
-    } catch (error) {
-      // mantém na tela os dados que já foram carregados
-    }
+    } catch (error) {}
   }, [initialTicket.id]);
 
-  // atualiza ao abrir a tela e ao voltar para ela
   useFocusEffect(useCallback(() => { fetchTicket(); }, [fetchTicket]));
 
   async function onRefresh() {
-    setRefreshing(true);
-    await fetchTicket();
-    setRefreshing(false);
+    setRefreshing(true); await fetchTicket(); setRefreshing(false);
   }
 
-  // suporta o array photo_urls retornado pelo backend
-  const photos: string[] = Array.isArray(ticket.photo_urls)
-    ? ticket.photo_urls
-    : (ticket.photo_url ? [ticket.photo_url] : []);
+  const photos: string[] = Array.isArray(ticket.photo_urls) ? ticket.photo_urls : (ticket.photo_url ? [ticket.photo_url] : []);
 
   useEffect(() => {
     if (userRole === 'manager') {
-      api.get('/api/v1/users/technicians')
-        .then(res => {
+      api.get('/api/v1/users/technicians').then(res => {
           setTechnicians(res.data);
-          // na reatribuição já deixa selecionado o técnico atual
           const current = initialTicket.technician?.id;
           if (current) setSelectedTech(String(current));
           else if (res.data.length > 0) setSelectedTech(String(res.data[0].id));
-        })
-        .catch(() => showToast('Erro ao carregar técnicos.', 'error'));
+        }).catch(() => showToast('Erro ao carregar técnicos.', 'error'));
     }
   }, [userRole]);
 
   async function handleAssign() {
     if (!selectedTech || submitting) return;
-    if (ticket.technician?.id && String(ticket.technician.id) === selectedTech) {
-      return showToast('Este técnico já é o responsável.', 'info');
-    }
+    if (ticket.technician?.id && String(ticket.technician.id) === selectedTech) return showToast('Este técnico já é o responsável.', 'info');
     const techName = technicians.find(t => String(t.id) === selectedTech)?.name || 'o técnico';
     const isReassign = !!ticket.technician;
+    
     const ok = await confirmAction({
       title: isReassign ? 'Reatribuir chamado' : 'Atribuir chamado',
       message: `Encaminhar o chamado para ${techName}?`,
       confirmText: isReassign ? 'Reatribuir' : 'Atribuir',
     });
     if (!ok) return;
+    
     setSubmitting(true);
     try {
       const response = await api.patch(`/api/v1/tickets/${ticket.id}/assign`, { technician_id: Number(selectedTech) });
@@ -90,52 +76,46 @@ export default function TicketDetails({ route }: any) {
       showToast(isReassign ? 'Chamado reatribuído!' : 'Chamado atribuído!', 'success');
     } catch (error) { showToast(getApiErrorMessage(error, 'Falha ao atribuir.'), 'error'); } finally { setSubmitting(false); }
   }
+
   async function handleAssume() {
     if (submitting) return;
-    const ok = await confirmAction({
-      title: 'Assumir chamado',
-      message: 'Você ficará responsável por este atendimento e o solicitante será avisado.',
-      confirmText: 'Assumir',
-    });
+    const ok = await confirmAction({ title: 'Assumir chamado', message: 'Você ficará responsável por este atendimento.', confirmText: 'Assumir' });
     if (!ok) return;
+    
     setSubmitting(true);
     try {
       const response = await api.patch(`/api/v1/tickets/${ticket.id}/assume`);
       setTicket(response.data);
       showToast('Chamado assumido!', 'success');
     } catch (error) {
-      // outro técnico pode ter assumido antes: atualiza a tela para mostrar o estado real
       showToast(getApiErrorMessage(error, 'Falha ao assumir.'), 'error');
       fetchTicket();
     } finally { setSubmitting(false); }
   }
+
   async function handleResolve() {
     if (!solutionText.trim()) return showToast('Descreva a solução antes de resolver.', 'error');
     if (submitting) return;
-    const ok = await confirmAction({
-      title: 'Resolver chamado',
-      message: 'Confirma que o problema foi resolvido? O solicitante receberá a solução registrada.',
-      confirmText: 'Resolver',
-    });
+    const ok = await confirmAction({ title: 'Resolver chamado', message: 'Confirma que o problema foi resolvido?', confirmText: 'Resolver' });
     if (!ok) return;
+    
     setSubmitting(true);
     try {
       const response = await api.patch(`/api/v1/tickets/${ticket.id}/update_status`, { status: 'resolvido', solution: solutionText.trim() });
-      setTicket(response.data);
-      setSolutionText('');
+      setTicket(response.data); setSolutionText('');
       showToast('Chamado resolvido!', 'success');
     } catch (error) { showToast(getApiErrorMessage(error, 'Falha ao resolver.'), 'error'); } finally { setSubmitting(false); }
   }
-  // permite ao solicitante reabrir o chamado caso o problema volte
+
   async function handleReopen() {
     if (submitting) return;
     setSubmitting(true);
     try {
       const response = await api.patch(`/api/v1/tickets/${ticket.id}/reopen`);
-      setTicket(response.data);
-      showToast('Chamado reaberto!', 'success');
-    } catch (error) { showToast('Não foi possível reabrir o chamado.', 'error'); } finally { setSubmitting(false); }
+      setTicket(response.data); showToast('Chamado reaberto!', 'success');
+    } catch (error) { showToast('Não foi possível reabrir.', 'error'); } finally { setSubmitting(false); }
   }
+
   async function handleAddComment() {
     if (!newComment.trim() || submitting) return;
     setSubmitting(true);
@@ -154,31 +134,20 @@ export default function TicketDetails({ route }: any) {
 
   return (
     <XmbBackground>
-      <ScrollView
-        style={styles.container}
-        keyboardShouldPersistTaps="handled"
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.accentSilver} />}
-      >
+      <ScrollView style={styles.container} keyboardShouldPersistTaps="handled" refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.accentSilver} />}>
         <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}>
           
           <View style={[styles.requesterBox, { borderColor: colors.border }]}>
-            {/* PROTEÇÃO CONTRA DADOS VAZIOS AQUI (requester?) */}
             {ticket.requester?.avatar_url ? (
               <Image source={{ uri: `${baseUrl}${ticket.requester.avatar_url}` }} style={styles.requesterAvatar} />
             ) : (
               <View style={[styles.requesterAvatarPlaceholder, { backgroundColor: colors.accentIce }]}>
-                <Text style={[styles.requesterAvatarText, { color: colors.background }]}>
-                  {ticket.requester?.name ? ticket.requester.name.charAt(0).toUpperCase() : '?'}
-                </Text>
+                <Text style={[styles.requesterAvatarText, { color: colors.background }]}>{ticket.requester?.name ? ticket.requester.name.charAt(0).toUpperCase() : '?'}</Text>
               </View>
             )}
             <View style={{ marginLeft: 10, flex: 1 }}>
-              <Text style={[styles.requesterName, { color: colors.textPrimary }]}>
-                {ticket.requester?.name || 'Solicitante Desconhecido'}
-              </Text>
-              {ticket.requester?.sector_name && (
-                <Text style={[styles.requesterId, { color: colors.accentSilver, fontWeight: 'bold' }]}>Setor: {ticket.requester.sector_name}</Text>
-              )}
+              <Text style={[styles.requesterName, { color: colors.textPrimary }]}>{ticket.requester?.name || 'Solicitante Desconhecido'}</Text>
+              {ticket.requester?.sector_name && <Text style={[styles.requesterId, { color: colors.accentSilver, fontWeight: 'bold' }]}>Setor: {ticket.requester.sector_name}</Text>}
               {ticket.requester?.identification && <Text style={[styles.requesterId, { color: colors.textSecondary }]}>{ticket.requester.identification}</Text>}
             </View>
           </View>
@@ -197,12 +166,22 @@ export default function TicketDetails({ route }: any) {
             <Text style={[styles.label, { color: colors.textPrimary }]}>Prioridade:</Text>
             <Text style={[styles.value, { color: getPriorityColor(ticket.priority, colors), fontWeight: 'bold' }]}>{getPriorityLabel(ticket.priority)}</Text>
           </View>
+          
           {ticket.category?.name && (
             <View style={[styles.infoRow, { alignItems: 'center' }]}>
               <Text style={[styles.label, { color: colors.textPrimary }]}>Categoria:</Text>
               <Text style={[styles.value, { color: colors.textSecondary }]}>{ticket.category.name}</Text>
             </View>
           )}
+
+          {/* NOVO CAMPO: EXIBIÇÃO DA LOCALIZAÇÃO */}
+          {ticket.location && (
+            <View style={[styles.infoRow, { alignItems: 'center' }]}>
+              <Text style={[styles.label, { color: colors.textPrimary }]}>Local:</Text>
+              <Text style={[styles.value, { color: colors.textSecondary }]}>{ticket.location}</Text>
+            </View>
+          )}
+
           {userRole !== 'requester' && (
             <View style={[styles.infoRow, { alignItems: 'center' }]}>
               <Text style={[styles.label, { color: colors.textPrimary }]}>Técnico:</Text>
@@ -219,27 +198,16 @@ export default function TicketDetails({ route }: any) {
 
           {ticket.solution && <View style={[styles.solutionBox, { backgroundColor: isDark ? 'rgba(152, 195, 121, 0.1)' : 'rgba(52, 199, 89, 0.1)' }]}><Text style={[styles.label, { color: colors.textPrimary }]}>Solução Aplicada:</Text><Text style={[styles.value, { color: colors.textPrimary }]}>{ticket.solution}</Text></View>}
 
-          {/* botao pro solicitante reabrir chamado resolvido */}
           {user?.id === ticket.requester?.id && ticket.status === 'resolvido' && (
             <TouchableOpacity style={[styles.button, { backgroundColor: colors.statusWarning, marginTop: 15 }]} onPress={handleReopen} disabled={submitting}>
               <Text style={[styles.buttonText, { color: colors.background }]}>Reabrir Chamado</Text>
             </TouchableOpacity>
           )}
 
-          {/* AÇÕES DO GESTOR */}
           {canManagerAssign && (
             <View style={{ marginTop: 20, borderTopWidth: 1, borderColor: colors.border, paddingTop: 15 }}>
-              <Text style={[styles.label, { color: colors.textPrimary, marginBottom: 10 }]}>
-                {ticket.technician ? 'Reatribuir para outro Técnico:' : 'Atribuir a um Técnico:'}
-              </Text>
-              
-              <CustomSelect 
-                options={techOptions}
-                selectedValue={selectedTech}
-                onValueChange={setSelectedTech}
-                placeholder="Selecione o técnico"
-              />
-              
+              <Text style={[styles.label, { color: colors.textPrimary, marginBottom: 10 }]}>{ticket.technician ? 'Reatribuir para outro Técnico:' : 'Atribuir a um Técnico:'}</Text>
+              <CustomSelect options={techOptions} selectedValue={selectedTech} onValueChange={setSelectedTech} placeholder="Selecione o técnico" />
               <TouchableOpacity style={[styles.button, { backgroundColor: colors.accentSilver, marginTop: 15 }, busyStyle]} onPress={handleAssign} disabled={submitting}>
                 <Text style={[styles.buttonText, { color: colors.background }]}>{ticket.technician ? 'Reatribuir Chamado' : 'Atribuir Chamado'}</Text>
               </TouchableOpacity>
@@ -252,11 +220,8 @@ export default function TicketDetails({ route }: any) {
             </TouchableOpacity>
           )}
 
-          {/* técnico que não é o responsável só acompanha */}
           {userRole === 'technician' && ticket.status === 'em_atendimento' && !isMyTicket && (
-            <Text style={{ color: colors.textMuted, marginTop: 15, fontStyle: 'italic' }}>
-              Este chamado está com {ticket.technician?.name || 'outro técnico'}.
-            </Text>
+            <Text style={{ color: colors.textMuted, marginTop: 15, fontStyle: 'italic' }}>Este chamado está com {ticket.technician?.name || 'outro técnico'}.</Text>
           )}
 
           {userRole === 'technician' && ticket.status === 'em_atendimento' && isMyTicket && (
@@ -275,9 +240,7 @@ export default function TicketDetails({ route }: any) {
           {ticket.ticket_events?.map((event: any) => (
             <View key={event.id} style={[styles.commentBox, { backgroundColor: colors.surfaceElevated, borderLeftColor: colors.accentSilver }]}>
               <View style={styles.commentHeader}>
-                <Text style={[styles.commentAuthor, { color: colors.textPrimary }]}>
-                  {event.user?.name || 'Usuário'}{event.user?.id === user?.id ? ' (você)' : ''}
-                </Text>
+                <Text style={[styles.commentAuthor, { color: colors.textPrimary }]}>{event.user?.name || 'Usuário'}{event.user?.id === user?.id ? ' (você)' : ''}</Text>
                 <Text style={{ color: colors.textMuted, fontSize: 11 }}>{formatDateTime(event.created_at)}</Text>
               </View>
               <Text style={[styles.commentText, { color: colors.textSecondary }]}>{event.content}</Text>
