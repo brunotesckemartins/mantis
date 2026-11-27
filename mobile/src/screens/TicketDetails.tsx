@@ -93,6 +93,27 @@ export default function TicketDetails({ route }: any) {
     } finally { setSubmitting(false); }
   }
 
+
+  // técnico devolve o chamado para a fila
+  async function handleUnassume() {
+    if (submitting) return;
+    const ok = await confirmAction({
+      title: 'Deixar chamado',
+      message: 'Tem certeza que deseja devolver o chamado para a fila?',
+      confirmText: 'Deixar',
+      destructive: true,
+    });
+    if (!ok) return;
+
+    setSubmitting(true);
+    try {
+      const response = await api.patch(`/api/v1/tickets/${ticket.id}/unassume`);
+      setTicket(response.data);
+      showToast('Chamado devolvido para a fila.', 'success');
+    } catch (error) {
+      showToast(getApiErrorMessage(error, 'Falha ao deixar o chamado.'), 'error');
+    } finally { setSubmitting(false); }
+  }
   async function handleResolve() {
     if (!solutionText.trim()) return showToast('Descreva a solução antes de resolver.', 'error');
     if (submitting) return;
@@ -226,6 +247,10 @@ export default function TicketDetails({ route }: any) {
 
           {userRole === 'technician' && ticket.status === 'em_atendimento' && isMyTicket && (
             <View style={{ marginTop: 20, borderTopWidth: 1, borderColor: colors.border, paddingTop: 15 }}>
+              <TouchableOpacity style={[styles.button, { backgroundColor: colors.statusWarning, marginTop: 0, marginBottom: 20 }, busyStyle]} onPress={handleUnassume} disabled={submitting}>
+                <Text style={[styles.buttonText, { color: '#000' }]}>Deixar Chamado (Voltar para fila)</Text>
+              </TouchableOpacity>
+
               <Text style={[styles.label, { color: colors.textPrimary }]}>Registrar Solução:</Text>
               <TextInput style={[styles.input, { backgroundColor: colors.surfaceElevated, borderColor: colors.border, color: colors.textPrimary }]} placeholder="O que foi feito?" placeholderTextColor={colors.textMuted} multiline value={solutionText} onChangeText={setSolutionText} />
               <TouchableOpacity style={[styles.button, { backgroundColor: colors.statusSuccess }, busyStyle]} onPress={handleResolve} disabled={submitting}>
